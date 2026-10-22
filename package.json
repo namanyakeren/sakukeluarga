@@ -1,0 +1,32 @@
+{
+  "name": "saku-keluarga",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pencatat pemasukan & pengeluaran via WhatsApp dengan dashboard web",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.9"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace @saku/web",
+    "dev:wa": "npm run dev --workspace @saku/wa",
+    "build": "npm run build --workspace @saku/web",
+    "start": "npm run start --workspace @saku/web",
+    "db:generate": "npm run generate --workspace @saku/db",
+    "db:push": "npm run push --workspace @saku/db",
+    "db:studio": "npm run studio --workspace @saku/db",
+    "bootstrap": "tsx packages/db/scripts/bootstrap.ts",
+    "test": "node --import tsx --test packages/shared/test/*.test.ts",
+    "typecheck": "tsc -p packages/shared/tsconfig.json --noEmit && tsc -p apps/wa/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "tsx": "^4.20.6"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

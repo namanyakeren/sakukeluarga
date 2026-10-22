@@ -1,0 +1,125 @@
+// Skema database Saku Keluarga.
+// Sinkronisasi ke Postgres: `npm run db:push` (otomatis saat container web start).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum TxType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum WalletType {
+  CASH
+  BANK
+  EWALLET
+  OTHER
+}
+
+model User {
+  id              String   @id @default(cuid())
+  name            String
+  waNumber        String   @unique
+  passwordHash    String
+  role            Role     @default(MEMBER)
+  defaultWalletId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  wallets         Wallet[]
+  categories      Category[]
+  transactions    Transaction[]
+  inboundMessages InboundMessage[]
+
+  @@map("users")
+}
+
+model Wallet {
+  id             String     @id @default(cuid())
+  userId         String
+  name           String
+  type           WalletType @default(CASH)
+  initialBalance BigInt     @default(0)
+  archived       Boolean    @default(false)
+  sortOrder      Int        @default(0)
+  createdAt      DateTime   @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[] @relation("TransactionWallet")
+  transfersIn  Transaction[] @relation("TransferToWallet")
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("wallets")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  type      TxType
+  emoji     String   @default("📦")
+  keywords  String[] @default([])
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([userId, name, type])
+  @@index([userId])
+  @@map("categories")
+}
+
+model Transaction {
+  id         String   @id @default(cuid())
+  userId     String
+  walletId   String
+  toWalletId String?
+  categoryId String?
+  type       TxType
+  amount     BigInt
+  note       String   @default("")
+  occurredAt DateTime
+  source     String   @default("WEB")
+  rawMessage String?
+  createdAt  DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet   Wallet    @relation("TransactionWallet", fields: [walletId], references: [id], onDelete: Cascade)
+  toWallet Wallet?   @relation("TransferToWallet", fields: [toWalletId], references: [id], onDelete: SetNull)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId, occurredAt])
+  @@index([walletId])
+  @@index([categoryId])
+  @@map("transactions")
+}
+
+model InboundMessage {
+  id          String   @id @default(cuid())
+  waMessageId String   @unique
+  fromNumber  String
+  userId      String?
+  text        String   @default("")
+  status      String   @default("RECEIVED")
+  error       String?
+  createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@map("inbound_messages")
+}

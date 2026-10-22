@@ -1,0 +1,11 @@
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.log
+*.tsbuildinfo
+.env
+.env.local
+.DS_Store
+apps/wa/data/
