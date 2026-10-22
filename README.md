@@ -8,12 +8,17 @@ admin bisa melihat gabungan seluruh keluarga.
 Cocok dijalankan di homeserver dengan Docker Compose. Tanpa WhatsApp Business API,
 tanpa biaya bulanan.
 
+> **Baru pertama kali deploy?** Ikuti panduan langkah demi langkah di
+> [`DEPLOYMENT.md`](DEPLOYMENT.md) — dari persiapan server, `.env`, Docker,
+> scan QR, sampai backup dan update.
+
 ---
 
 ## Daftar isi
 
 - [Fitur](#fitur)
 - [Arsitektur](#arsitektur)
+- [Panduan deploy lengkap](DEPLOYMENT.md)
 - [Menjalankan dengan Docker](#menjalankan-dengan-docker)
 - [Login pertama](#login-pertama)
 - [Menautkan WhatsApp](#menautkan-whatsapp)
