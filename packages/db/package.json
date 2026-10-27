@@ -15,9 +15,10 @@
   "dependencies": {
     "@prisma/client": "6.19.3",
     "@saku/shared": "*",
-    "bcryptjs": "^3.0.3"
+    "bcryptjs": "^3.0.3",
+    "next": "16.4.3"
   },
   "devDependencies": {
-    "prisma": "6.19.3"
+    "prisma": "^7.10.1"
   }
 }
