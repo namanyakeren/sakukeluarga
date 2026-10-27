@@ -12,7 +12,7 @@ COPY apps/web/package.json apps/web/package.json
 COPY apps/wa/package.json apps/wa/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/shared/package.json packages/shared/package.json
-RUN npm ci --no-audit --no-fund
+RUN npm install --no-audit --no-fund
 
 COPY . .
 RUN npx prisma generate --schema packages/db/prisma/schema.prisma \
