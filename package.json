@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
+    "lightningcss": "^1.33.0",
     "tsx": "^4.20.6"
   },
   "devDependencies": {
