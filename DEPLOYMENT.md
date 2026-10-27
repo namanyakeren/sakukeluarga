@@ -438,52 +438,8 @@ docker compose up -d
 Pastikan DNS domain mengarah ke IP publik rumah dan port 80/443 sudah diteruskan
 dengan benar. Untuk keamanan tambahan, tambahkan rate limit login di reverse proxy.
 
-### Opsi C — Cloudflare Tunnel (Paling Praktis, Tanpa Buka Port Router)
-
-Sangat direkomendasikan jika server berada di rumah (tanpa IP publik statis / CGNAT) dan kamu ingin mengakses memakai domain sendiri secara aman dengan HTTPS otomatis.
-
-**1. Buat Tunnel di Cloudflare Zero Trust**
-
-1. Masuk ke [Cloudflare Zero Trust](https://one.dash.cloudflare.com/).
-2. Buka menu **Networks** → **Tunnels** → Klik **Create a Tunnel**.
-3. Pilih konektor **Cloudflared**, beri nama misal: `saku-keluarga`, lalu klik **Save tunnel**.
-4. Di bagian **Install and run a connector**, pilih tab **Docker**. Kamu akan melihat token panjang di akhir perintah (setelah `--token`), salin token tersebut.
-
-**2. Atur Public Hostname di Cloudflare**
-
-1. Pada halaman tunnel yang sama, buka tab **Public Hostname**.
-2. Klik **Add a public hostname**:
-   - **Subdomain:** misal `saku` (atau biarkan kosong jika menggunakan domain utama).
-   - **Domain:** pilih domain kamu yang terdaftar di Cloudflare (misal: `keluarga.com`).
-   - **Service Type:** `HTTP`
-   - **URL:** `web:3000` *(karena container tunnel berjalan di network Docker yang sama dengan container web)*.
-3. Klik **Save hostname**.
-
-**3. Konfigurasi di Server (.env)**
-
-Buka file `.env` di server kamu:
-
-```dotenv
-# Wajib 1 karena diakses lewat HTTPS domain Cloudflare
-COOKIE_SECURE=1
-
-# Token yang disalin dari Cloudflare Zero Trust
-CLOUDFLARE_TUNNEL_TOKEN=eyJhIjoi...
-
-# Aktifkan profil tunnel di Docker Compose
-COMPOSE_PROFILES=tunnel
-```
-
-**4. Jalankan Docker Compose**
-
-```bash
-docker compose up -d
-```
-
-> **Catatan:** Container `tunnel` akan otomatis berjalan bersama `db`, `web`, dan `wa`.
-> Kamu sekarang bisa mengakses dashboard langsung di `https://saku.keluarga.com` dari mana saja tanpa perlu setting port forwarding di router!
-
 ---
+
 
 ## 10. Operasional harian
 
