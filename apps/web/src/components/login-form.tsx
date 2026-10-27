@@ -10,16 +10,15 @@ export function LoginForm() {
   return (
     <form action={formAction} className="space-y-4">
       <div>
-        <label className="label" htmlFor="waNumber">
-          Nomor WhatsApp
+        <label className="label" htmlFor="identifier">
+          Nomor WhatsApp atau Nama Pengguna
         </label>
         <input
-          id="waNumber"
-          name="waNumber"
-          type="tel"
-          inputMode="tel"
+          id="identifier"
+          name="identifier"
+          type="text"
           autoComplete="username"
-          placeholder="0812 3456 7890"
+          placeholder="Contoh: 081234567890 atau Admin"
           className="input"
           required
         />

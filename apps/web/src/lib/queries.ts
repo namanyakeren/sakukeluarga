@@ -44,13 +44,10 @@ export async function resolveScope(
   const members = await listMembers();
   const ids = members.map((member) => member.id);
 
-  if (memberParam === "all") {
-    return { userIds: ids, selected: "all", members, canSwitch: true };
-  }
   if (memberParam && ids.includes(memberParam)) {
     return { userIds: [memberParam], selected: memberParam, members, canSwitch: true };
   }
-  return { userIds: [user.id], selected: user.id, members, canSwitch: true };
+  return { userIds: ids, selected: "all", members, canSwitch: true };
 }
 
 export interface TrendPoint {

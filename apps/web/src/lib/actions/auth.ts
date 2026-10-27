@@ -11,24 +11,45 @@ export async function loginAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const waNumber = normalizeWaNumber(String(formData.get("waNumber") ?? ""));
+  const identifier = String(
+    formData.get("identifier") ?? formData.get("waNumber") ?? "",
+  ).trim();
   const password = String(formData.get("password") ?? "");
 
-  if (!isValidWaNumber(waNumber)) {
-    return { ok: false, error: "Nomor WhatsApp tidak valid. Contoh: 081234567890." };
+  if (!identifier) {
+    return { ok: false, error: "Nomor WhatsApp atau nama pengguna wajib diisi." };
   }
   if (!password) {
     return { ok: false, error: "Password wajib diisi." };
   }
 
-  const user = await prisma.user.findUnique({ where: { waNumber } });
+  // 1. Coba cari berdasarkan nomor WhatsApp
+  const normalizedWa = normalizeWaNumber(identifier);
+  let user = null;
+
+  if (isValidWaNumber(normalizedWa)) {
+    user = await prisma.user.findUnique({ where: { waNumber: normalizedWa } });
+  }
+
+  // 2. Jika tidak ditemukan atau identifier adalah username, cari berdasarkan nama (case-insensitive)
   if (!user) {
-    return { ok: false, error: "Nomor atau password salah." };
+    user = await prisma.user.findFirst({
+      where: {
+        name: {
+          equals: identifier,
+          mode: "insensitive",
+        },
+      },
+    });
+  }
+
+  if (!user) {
+    return { ok: false, error: "Nomor WhatsApp/nama pengguna atau password salah." };
   }
 
   const valid = await compare(password, user.passwordHash);
   if (!valid) {
-    return { ok: false, error: "Nomor atau password salah." };
+    return { ok: false, error: "Nomor WhatsApp/nama pengguna atau password salah." };
   }
 
   await createSession(user.id);

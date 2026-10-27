@@ -60,7 +60,14 @@ const HELP_TEXT = [
 ].join("\n");
 
 function extractText(message: WAMessage): string | null {
-  const content = message.message;
+  let content = message.message;
+  if (!content) return null;
+  if (content.ephemeralMessage) {
+    content = content.ephemeralMessage.message;
+  }
+  if (content?.viewOnceMessage) {
+    content = content.viewOnceMessage.message;
+  }
   if (!content) return null;
   return (
     content.conversation ??
@@ -99,16 +106,80 @@ function txReply(
   return lines.join("\n");
 }
 
+const lidToPhoneMap = new Map<string, string>();
+
+export function registerLidPhone(lid: string, jidOrPhone: string): void {
+  const cleanLid = lid.split("@")[0].split(":")[0].replace(/\D/g, "");
+  const cleanPhone = jidOrPhone.split("@")[0].split(":")[0].replace(/\D/g, "");
+  if (cleanLid && cleanPhone) {
+    lidToPhoneMap.set(cleanLid, cleanPhone);
+  }
+}
+
 export async function handleIncoming(socket: WASocket, message: WAMessage): Promise<void> {
   const jid = message.key.remoteJid;
   const messageId = message.key.id;
 
   if (!jid || !messageId) return;
-  if (message.key.fromMe) return;
-  if (!jid.endsWith("@s.whatsapp.net")) return;
 
-  const fromNumber = jid.split("@")[0].replace(/\D/g, "");
+  // Hanya proses chat pribadi: @s.whatsapp.net, @lid, atau @c.us (abaikan status, grup, newsletter)
+  const isPersonal = jid.endsWith("@s.whatsapp.net") || jid.endsWith("@lid") || jid.endsWith("@c.us");
+  if (!isPersonal) {
+    logger.debug({ jid }, "Bukan chat pribadi, dilewati");
+    return;
+  }
+
+  // Nomor bot dan LID bot
+  const botJid = socket.user?.id ?? "";
+  const botNumber = botJid.split("@")[0].split(":")[0].replace(/\D/g, "");
+  const botLid = ((socket.user as { lid?: string })?.lid ?? "").split("@")[0].split(":")[0].replace(/\D/g, "");
+
+  if (botLid && botNumber) {
+    lidToPhoneMap.set(botLid, botNumber);
+  }
+
+  // ID target (angka sebelum @ dan :device)
+  const targetId = jid.split("@")[0].split(":")[0].replace(/\D/g, "");
+
+  // Jika pesan memuat senderPn (Phone Number asli dari WhatsApp untuk akun ber-LID), simpan mapping-nya
+  const rawSenderPn = (message.key as { senderPn?: string; participantPn?: string }).senderPn ||
+    (message.key as { senderPn?: string; participantPn?: string }).participantPn;
+  if (rawSenderPn && targetId) {
+    registerLidPhone(targetId, String(rawSenderPn));
+  }
+
+  // Cek apakah pesan ini chat ke diri sendiri ("Message yourself")
+  const isSelfChat = Boolean(
+    message.key.fromMe &&
+      ((botNumber && targetId === botNumber) || (botLid && targetId === botLid)),
+  );
+
+  // Jika pesan dari diri sendiri (fromMe) tapi BUKAN chat ke diri sendiri, abaikan
+  if (message.key.fromMe && !isSelfChat) return;
+
+  // Tentukan nomor pengirim (format phone number)
+  let fromNumber: string = "";
+  if (isSelfChat) {
+    fromNumber = botNumber;
+  } else if (jid.endsWith("@s.whatsapp.net") || jid.endsWith("@c.us")) {
+    fromNumber = targetId;
+  } else if (jid.endsWith("@lid")) {
+    fromNumber = lidToPhoneMap.get(targetId) || "";
+    if (!fromNumber && rawSenderPn) {
+      fromNumber = String(rawSenderPn).split("@")[0].split(":")[0].replace(/\D/g, "");
+    }
+    // Jika WhatsApp tidak menyertakan PN, gunakan targetId langsung sebagai fallback
+    if (!fromNumber) {
+      fromNumber = targetId;
+    }
+  }
+
   const text = extractText(message)?.trim() ?? "";
+
+  logger.info(
+    { jid, fromNumber, fromMe: message.key.fromMe, isSelfChat, hasText: Boolean(text), text: text.slice(0, 50) },
+    "Pesan WhatsApp masuk diterima",
+  );
 
   // Cek lebih dulu supaya pesan ulang dari WhatsApp (mis. saat reconnect)
   // tidak memicu error unique constraint di log Prisma.

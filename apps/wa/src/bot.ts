@@ -7,11 +7,15 @@ import {
   type WASocket,
 } from "@whiskeysockets/baileys";
 import fs from "node:fs";
+import path from "node:path";
 import qrcode from "qrcode-terminal";
 import { logger } from "./logger";
-import { handleIncoming } from "./messages";
+import { handleIncoming, registerLidPhone } from "./messages";
 
-const AUTH_DIR = process.env.WA_AUTH_DIR?.trim() || "/data/auth";
+const defaultAuthDir = fs.existsSync("/data")
+  ? "/data/auth"
+  : path.resolve(__dirname, "../data/auth");
+const AUTH_DIR = process.env.WA_AUTH_DIR?.trim() || defaultAuthDir;
 
 export interface BotState {
   connected: boolean;
@@ -63,14 +67,25 @@ export async function startBot(): Promise<void> {
       auth: authState,
       logger,
       browser: ["Saku Keluarga", "Chrome", "1.0.0"],
-      markOnlineOnConnect: false,
+      markOnlineOnConnect: true,
       syncFullHistory: false,
       generateHighQualityLinkPreview: false,
+      defaultQueryTimeoutMs: undefined,
+      getMessage: async (_key) => undefined,
     });
 
     activeSocket = socket;
 
     socket.ev.on("creds.update", saveCreds);
+
+    (socket.ev as unknown as { on: (event: string, handler: (data: { lid?: string; jid?: string }) => void) => void }).on(
+      "chats.phoneNumberShare",
+      ({ lid, jid }: { lid?: string; jid?: string }) => {
+        if (lid && jid) {
+          registerLidPhone(lid, jid);
+        }
+      },
+    );
 
     socket.ev.on("connection.update", (update) => {
       const { connection, lastDisconnect, qr } = update;

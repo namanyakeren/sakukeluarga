@@ -29,7 +29,7 @@ export default async function LoginPage() {
             Masuk ke dashboard
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Gunakan nomor WhatsApp yang sudah didaftarkan admin.
+            Gunakan nomor WhatsApp atau nama pengguna yang sudah didaftarkan.
           </p>
           <div className="mt-5">
             <LoginForm />
