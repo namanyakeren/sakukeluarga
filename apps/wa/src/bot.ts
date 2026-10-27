@@ -70,7 +70,10 @@ export async function startBot(): Promise<void> {
       markOnlineOnConnect: true,
       syncFullHistory: false,
       generateHighQualityLinkPreview: false,
-      defaultQueryTimeoutMs: undefined,
+      defaultQueryTimeoutMs: 60_000,
+      // Bot tidak menyimpan histori pesan. Pesan lama yang perlu didekripsi
+      // ulang (mis. setelah reconnect) tidak akan tersedia; ini pilihan sadar
+      // agar penyimpanan tetap ringan. Pesan baru tetap diproses normal.
       getMessage: async (_key) => undefined,
     });
 

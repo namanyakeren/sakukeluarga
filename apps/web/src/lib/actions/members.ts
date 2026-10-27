@@ -17,6 +17,17 @@ function fail(error: string): ActionState {
   return { ok: false, error };
 }
 
+async function isNameTaken(name: string, exceptUserId?: string): Promise<boolean> {
+  const found = await prisma.user.findFirst({
+    where: {
+      name: { equals: name, mode: "insensitive" },
+      ...(exceptUserId ? { id: { not: exceptUserId } } : {}),
+    },
+    select: { id: true },
+  });
+  return Boolean(found);
+}
+
 export async function createMemberAction(
   _prev: ActionState,
   formData: FormData,
@@ -30,6 +41,9 @@ export async function createMemberAction(
   const role: Role = roleRaw === "ADMIN" ? "ADMIN" : "MEMBER";
 
   if (!name) return fail("Nama wajib diisi.");
+  if (await isNameTaken(name)) {
+    return fail("Nama itu sudah dipakai anggota lain. Gunakan nama yang unik.");
+  }
   if (!isValidWaNumber(waNumber)) {
     return fail("Nomor WhatsApp tidak valid. Contoh: 081234567890.");
   }
@@ -135,6 +149,9 @@ export async function updateProfileAction(
   const waNumber = normalizeWaNumber(String(formData.get("waNumber") ?? ""));
 
   if (!name) return fail("Nama wajib diisi.");
+  if (await isNameTaken(name, user.id)) {
+    return fail("Nama itu sudah dipakai anggota lain. Gunakan nama yang unik.");
+  }
   if (!isValidWaNumber(waNumber)) {
     return fail("Nomor WhatsApp tidak valid. Contoh: 081234567890.");
   }

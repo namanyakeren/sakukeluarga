@@ -77,31 +77,36 @@ export interface BalancesResult {
   total: number;
 }
 
-export async function getWalletBalances(userId: string): Promise<BalancesResult> {
+export async function getWalletBalancesForUsers(
+  userIds: string[],
+): Promise<BalancesResult> {
+  const ids = [...new Set(userIds)].filter(Boolean);
+  if (ids.length === 0) return { wallets: [], total: 0 };
+
   const wallets = await prisma.wallet.findMany({
-    where: { userId, archived: false },
+    where: { userId: { in: ids }, archived: false },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
 
   const [incomes, expenses, transfersOut, transfersIn] = await Promise.all([
     prisma.transaction.groupBy({
       by: ["walletId"],
-      where: { userId, type: "INCOME" },
+      where: { userId: { in: ids }, type: "INCOME" },
       _sum: { amount: true },
     }),
     prisma.transaction.groupBy({
       by: ["walletId"],
-      where: { userId, type: "EXPENSE" },
+      where: { userId: { in: ids }, type: "EXPENSE" },
       _sum: { amount: true },
     }),
     prisma.transaction.groupBy({
       by: ["walletId"],
-      where: { userId, type: "TRANSFER" },
+      where: { userId: { in: ids }, type: "TRANSFER" },
       _sum: { amount: true },
     }),
     prisma.transaction.groupBy({
       by: ["toWalletId"],
-      where: { userId, type: "TRANSFER", toWalletId: { not: null } },
+      where: { userId: { in: ids }, type: "TRANSFER", toWalletId: { not: null } },
       _sum: { amount: true },
     }),
   ]);
@@ -136,6 +141,10 @@ export async function getWalletBalances(userId: string): Promise<BalancesResult>
     wallets: result,
     total: result.reduce((sum, wallet) => sum + wallet.balance, 0),
   };
+}
+
+export async function getWalletBalances(userId: string): Promise<BalancesResult> {
+  return getWalletBalancesForUsers([userId]);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

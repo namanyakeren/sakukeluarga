@@ -23,7 +23,6 @@
     "typecheck": "tsc -p packages/shared/tsconfig.json --noEmit && tsc -p apps/wa/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@next/swc-linux-x64-gnu": "^15.5.28",
     "@prisma/client": "^6.19.3",
     "tsx": "^4.20.6"
   },

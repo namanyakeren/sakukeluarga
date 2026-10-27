@@ -48,6 +48,18 @@ async function main(): Promise<void> {
     return;
   }
 
+  const nameTaken = await prisma.user.findFirst({
+    where: { name: { equals: name, mode: "insensitive" } },
+    select: { id: true },
+  });
+  if (nameTaken) {
+    console.error(
+      `[bootstrap] Nama admin "${name}" sudah dipakai anggota lain. Ganti ADMIN_NAME di .env agar unik.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   const user = await createUserWithDefaults({
     name,
     waNumber,

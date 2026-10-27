@@ -68,6 +68,12 @@ function extractText(message: WAMessage): string | null {
   if (content?.viewOnceMessage) {
     content = content.viewOnceMessage.message;
   }
+  if (content?.viewOnceMessageV2) {
+    content = content.viewOnceMessageV2.message;
+  }
+  if (content?.viewOnceMessageV2Extension) {
+    content = content.viewOnceMessageV2Extension.message;
+  }
   if (!content) return null;
   return (
     content.conversation ??
@@ -107,6 +113,23 @@ function txReply(
 }
 
 const lidToPhoneMap = new Map<string, string>();
+const sentMessageIds = new Set<string>();
+const MAX_SENT_MESSAGE_IDS = 500;
+
+function rememberSentMessage(messageId?: string | null): void {
+  if (!messageId) return;
+  sentMessageIds.add(messageId);
+
+  if (sentMessageIds.size > MAX_SENT_MESSAGE_IDS) {
+    const oldest = sentMessageIds.values().next().value;
+    if (oldest) sentMessageIds.delete(oldest);
+  }
+}
+
+async function sendText(socket: WASocket, jid: string, text: string): Promise<void> {
+  const sent = await socket.sendMessage(jid, { text });
+  rememberSentMessage(sent?.key?.id);
+}
 
 export function registerLidPhone(lid: string, jidOrPhone: string): void {
   const cleanLid = lid.split("@")[0].split(":")[0].replace(/\D/g, "");
@@ -121,6 +144,14 @@ export async function handleIncoming(socket: WASocket, message: WAMessage): Prom
   const messageId = message.key.id;
 
   if (!jid || !messageId) return;
+
+  // Jangan proses kembali pesan yang baru saja dikirim bot. Ini terutama
+  // penting di "Message yourself" (self-chat), karena balasan bot bisa
+  // muncul sebagai pesan masuk dariMe dan berpotensi dicatat sebagai transaksi.
+  if (sentMessageIds.has(messageId)) {
+    logger.debug({ messageId }, "Pesan kiriman bot sendiri, dilewati");
+    return;
+  }
 
   // Hanya proses chat pribadi: @s.whatsapp.net, @lid, atau @c.us (abaikan status, grup, newsletter)
   const isPersonal = jid.endsWith("@s.whatsapp.net") || jid.endsWith("@lid") || jid.endsWith("@c.us");
@@ -177,8 +208,12 @@ export async function handleIncoming(socket: WASocket, message: WAMessage): Prom
   const text = extractText(message)?.trim() ?? "";
 
   logger.info(
-    { jid, fromNumber, fromMe: message.key.fromMe, isSelfChat, hasText: Boolean(text), text: text.slice(0, 50) },
+    { jid, fromNumber, fromMe: message.key.fromMe, isSelfChat, hasText: Boolean(text) },
     "Pesan WhatsApp masuk diterima",
+  );
+  logger.debug(
+    { messageId, text: text.slice(0, 80) },
+    "Isi pesan WhatsApp (hanya level debug)",
   );
 
   // Cek lebih dulu supaya pesan ulang dari WhatsApp (mis. saat reconnect)
@@ -225,20 +260,20 @@ export async function handleIncoming(socket: WASocket, message: WAMessage): Prom
     const last = unregisteredNotified.get(fromNumber) ?? 0;
     if (Date.now() - last > UNREGISTERED_COOLDOWN_MS) {
       unregisteredNotified.set(fromNumber, Date.now());
-      await socket
-        .sendMessage(jid, { text: UNREGISTERED_REPLY })
-        .catch((error) => logger.warn({ error }, "Gagal mengirim pesan belum terdaftar"));
+      await sendText(socket, jid, UNREGISTERED_REPLY).catch((error) =>
+        logger.warn({ error }, "Gagal mengirim pesan belum terdaftar"),
+      );
     }
     await mark("IGNORED");
     return;
   }
 
   if (!text) {
-    await socket
-      .sendMessage(jid, {
-        text: "Saat ini saya hanya bisa membaca pesan teks. Ketik /bantuan untuk contoh format.",
-      })
-      .catch(() => undefined);
+    await sendText(
+      socket,
+      jid,
+      "Saat ini saya hanya bisa membaca pesan teks. Ketik /bantuan untuk contoh format.",
+    ).catch(() => undefined);
     await mark("IGNORED", user.id);
     return;
   }
@@ -246,18 +281,19 @@ export async function handleIncoming(socket: WASocket, message: WAMessage): Prom
   try {
     const reply = await processMessage(user, text);
     if (reply) {
-      await socket.sendMessage(jid, { text: reply });
+      await sendText(socket, jid, reply);
     }
     await mark("PROCESSED", user.id);
-    logger.info({ userId: user.id, command: text.slice(0, 40) }, "Pesan diproses");
+    logger.info({ userId: user.id }, "Pesan diproses");
+    logger.debug({ userId: user.id, command: text.slice(0, 40) }, "Detail perintah");
   } catch (error) {
     logger.error({ error, userId: user.id }, "Gagal memproses transaksi");
     await mark("FAILED", user.id, (error as Error).message);
-    await socket
-      .sendMessage(jid, {
-        text: "❌ Maaf, terjadi kendala saat menyimpan transaksi. Coba lagi sebentar lagi.",
-      })
-      .catch(() => undefined);
+    await sendText(
+      socket,
+      jid,
+      "❌ Maaf, terjadi kendala saat menyimpan transaksi. Coba lagi sebentar lagi.",
+    ).catch(() => undefined);
   }
 }
 

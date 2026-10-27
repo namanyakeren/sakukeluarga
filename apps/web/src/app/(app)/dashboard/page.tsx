@@ -126,10 +126,10 @@ export default async function DashboardPage({
         />
         <StatCard
           label="Total saldo dompet"
-          value={formatIDR(data.balances.total)}
+          value={formatIDR(data.scopeBalances.total)}
           icon={<IconWallet className="h-4 w-4" />}
           tone="neutral"
-          hint={`${data.balances.wallets.length} dompet aktif`}
+          hint={`${data.scopeBalances.wallets.length} dompet aktif · ${scopeLabel}`}
         />
       </div>
 

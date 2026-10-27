@@ -4,6 +4,9 @@ node_modules
 **/.next
 .git
 .env
+**/.env
+.env.*
+**/.env.*
 *.log
 README.md
 apps/wa/data

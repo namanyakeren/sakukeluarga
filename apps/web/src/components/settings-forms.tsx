@@ -36,6 +36,9 @@ export function ProfileForm({ name, waNumber }: { name: string; waNumber: string
           maxLength={60}
           required
         />
+        <p className="mt-1 text-[11px] text-slate-500">
+          Nama harus unik dan bisa dipakai untuk login selain nomor WhatsApp.
+        </p>
       </div>
 
       <div>

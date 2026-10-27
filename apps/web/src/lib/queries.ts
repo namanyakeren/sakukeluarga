@@ -1,4 +1,11 @@
-import { prisma, getCategoryTotals, getSummary, getWalletBalances, type Prisma } from "@saku/db";
+import {
+  prisma,
+  getCategoryTotals,
+  getSummary,
+  getWalletBalances,
+  getWalletBalancesForUsers,
+  type Prisma,
+} from "@saku/db";
 import {
   currentMonthKey,
   monthKey,
@@ -176,22 +183,27 @@ export async function getDashboardData(user: SessionUser, scope: Scope) {
   const month = months[0];
   const range = monthRange(month);
 
-  const [summary, balances, categories, recentRows, trend] = await Promise.all([
-    getSummary(scope.userIds, range.start, range.end),
-    getWalletBalances(user.id),
-    getCategoryTotals(scope.userIds, range.start, range.end, "EXPENSE"),
-    prisma.transaction.findMany({
-      where: { userId: { in: scope.userIds } },
-      orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
-      take: 8,
-      include: {
-        wallet: { select: { name: true } },
-        category: { select: { name: true, emoji: true } },
-        user: { select: { name: true } },
-      },
-    }),
-    getMonthlyTrend(scope.userIds, months),
-  ]);
+  const ownScopeOnly =
+    scope.userIds.length === 1 && scope.userIds[0] === user.id;
+
+  const [summary, balances, scopeBalances, categories, recentRows, trend] =
+    await Promise.all([
+      getSummary(scope.userIds, range.start, range.end),
+      getWalletBalances(user.id),
+      ownScopeOnly ? null : getWalletBalancesForUsers(scope.userIds),
+      getCategoryTotals(scope.userIds, range.start, range.end, "EXPENSE"),
+      prisma.transaction.findMany({
+        where: { userId: { in: scope.userIds } },
+        orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
+        take: 8,
+        include: {
+          wallet: { select: { name: true } },
+          category: { select: { name: true, emoji: true } },
+          user: { select: { name: true } },
+        },
+      }),
+      getMonthlyTrend(scope.userIds, months),
+    ]);
 
   const recent: RecentTransaction[] = recentRows.map((row) => ({
     id: row.id,
@@ -211,6 +223,7 @@ export async function getDashboardData(user: SessionUser, scope: Scope) {
     month,
     summary,
     balances,
+    scopeBalances: scopeBalances ?? balances,
     categories: categories.filter((category) => category.total > 0),
     recent,
     trend,

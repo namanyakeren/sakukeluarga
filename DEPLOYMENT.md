@@ -59,6 +59,36 @@ Disusun agar bisa diikuti dari awal sampai operasional sehari-hari.
 > echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 > ```
 
+### Raspberry Pi / ARM64
+
+Project ini mendukung Raspberry Pi **64-bit** (ARM64/aarch64). Beberapa hal yang
+wajib dicek sebelum build:
+
+```bash
+uname -m
+# harus: aarch64
+```
+
+Kalau hasilnya `armv7l`, kamu memakai OS 32-bit. Node.js 22, Prisma, dan binary
+Next.js modern tidak didukung di arsitektur itu. Install ulang Raspberry Pi OS
+**64-bit** (Lite juga cukup) atau Debian arm64.
+
+- **RAM:** 2 GB disarankan. Pi dengan 1 GB sebaiknya memakai swap 2 GB (lihat di
+  atas) karena build Next.js dan Prisma bisa kehabisan memori.
+- **Build di Pi:** jangan build image di komputer x64 lalu menyalinnya ke Pi.
+  Docker akan memilih image dasar `arm64` dan Next.js akan memasang
+  `@next/swc-linux-arm64-gnu` secara otomatis. Build langsung di Pi (atau gunakan
+  `docker buildx` multi-arch).
+- **Jangan tambahkan SWC khusus x64:** `package.json` tidak boleh memuat
+  `@next/swc-linux-x64-gnu`; dependensi itu membuat `npm ci` gagal dengan
+  `EBADPLATFORM` di ARM64.
+- **OpenSSL:** image `node:22-bookworm-slim` sudah menyediakan OpenSSL 3 yang
+  dibutuhkan Prisma. Tidak perlu install manual.
+- **Waktu build:** Pi 4/5 bisa memakan 10–30 menit pada build pertama. Pantau
+  dengan `docker compose build --progress plain web`.
+- **Penyimpanan:** gunakan SSD/USB 3.0 bila memungkinkan; build dan database
+  lebih nyaman daripada microSD kelas lambat.
+
 ### Install Docker
 
 ```bash
@@ -198,12 +228,13 @@ LOG_LEVEL=info
 
 | Aturan | Alasan |
 | --- | --- |
-| `POSTGRES_PASSWORD` harus aman untuk URL | Nilainya dimasukkan ke `DATABASE_URL`. Hindari `@ : / # ? &` dan spasi. |
-| `AUTH_SECRET` minimal 32 karakter | Dipakai untuk menandatangani cookie login. |
-| `BOT_TOKEN` harus sama untuk `web` dan `wa` | Keduanya membaca `.env` yang sama. |
+| `POSTGRES_PASSWORD` minimal 12 karakter dan aman untuk URL | Nilainya dimasukkan ke `DATABASE_URL`. Hindari `@ : / # ? &` dan spasi. |
+| `AUTH_SECRET` minimal 32 karakter | Dipakai untuk menandatangani cookie login. Entrypoint menolak yang lebih pendek. |
+| `BOT_TOKEN` minimal 24 karakter dan sama untuk `web` dan `wa` | Keduanya membaca `.env` yang sama. |
+| `ADMIN_NAME` harus unik | Nama bisa dipakai untuk login selain nomor WhatsApp. |
 | `ADMIN_WA_NUMBER` boleh `08...` atau `62...` | Aplikasi menormalkannya ke format `62...`. |
-| `ADMIN_PASSWORD` minimal 8 karakter | Dipakai saat akun admin pertama dibuat. |
-| Jangan pakai nilai contoh | Entrypoint menolak `AUTH_SECRET`/`ADMIN_PASSWORD` contoh. |
+| `ADMIN_PASSWORD` minimal 8 karakter (12+ disarankan) | Dipakai saat akun admin pertama dibuat. Entrypoint memberi peringatan jika < 12. |
+| Jangan pakai nilai contoh | Entrypoint menolak `POSTGRES_PASSWORD`, `AUTH_SECRET`, dan `ADMIN_PASSWORD` contoh. |
 
 Amankan file:
 
@@ -226,9 +257,14 @@ Build pertama bisa memakan waktu **3–10 menit** tergantung server.
 
 Saat container `web` pertama kali start, entrypoint otomatis:
 
-1. Memvalidasi `AUTH_SECRET` dan `ADMIN_PASSWORD`.
+1. Memvalidasi `POSTGRES_PASSWORD` (minimal 12 karakter, aman untuk URL),
+   `AUTH_SECRET` (minimal 32 karakter), dan menolak nilai contoh.
 2. Menyinkronkan skema database (`prisma db push`).
 3. Membuat akun admin dari `ADMIN_*` jika belum ada.
+
+Jika salah satu validasi gagal, container berhenti dengan pesan yang menjelaskan
+variabel mana yang perlu diperbaiki. Perbaiki `.env`, lalu jalankan
+`docker compose up -d` lagi.
 
 Cek container:
 
@@ -309,9 +345,10 @@ http://192.168.1.10:3000
 
 ## 6. Login pertama
 
-Gunakan:
+Gunakan **salah satu**:
 
 - **Nomor WhatsApp:** sesuai `ADMIN_WA_NUMBER`, mis. `6281234567890`
+- **Nama admin:** sesuai `ADMIN_NAME`, mis. `Admin`
 - **Password:** sesuai `ADMIN_PASSWORD`
 
 Setelah berhasil masuk:
@@ -323,6 +360,11 @@ Setelah berhasil masuk:
 > `ADMIN_PASSWORD` di `.env` hanya dipakai saat akun admin **pertama kali dibuat**.
 > Mengubahnya setelah itu tidak mengubah password akun yang sudah ada.
 > Gunakan menu **Keamanan** di dashboard.
+
+Login dibatasi **5 kegagalan per nama/nomor** dan **20 kegagalan per IP** dalam
+15 menit. Jika terkena limit, tunggu sampai jendela waktu berakhir atau restart
+container `web` (hitungan disimpan di memori). Jika memakai reverse proxy, pastikan
+header `X-Forwarded-For` diteruskan.
 
 ---
 
@@ -348,7 +390,8 @@ Balasan bot akan muncul, dan transaksi tampil di dashboard.
 - Sesi disimpan di volume `wa-auth`; tidak perlu scan ulang setiap restart.
 - QR berganti otomatis. Panel memuat ulang tiap 6 detik.
 - Jika bot logout (perangkat dihapus dari HP), sesi lama dihapus dan QR baru muncul.
-- Bot hanya memproses **chat pribadi**, bukan grup.
+- Bot hanya memproses **chat pribadi** (`@s.whatsapp.net`, `@lid`, `@c.us`),
+  bukan grup. Self-chat didukung, dan balasan bot tidak diproses ulang.
 - Nomor pengirim harus terdaftar sebagai anggota.
 
 ### Kalau QR tidak muncul
@@ -372,15 +415,17 @@ Pastikan:
 1. Login sebagai admin.
 2. Buka **Pengaturan → Anggota keluarga → Tambah**.
 3. Isi:
-   - Nama
+   - Nama (**harus unik**, bisa dipakai untuk login)
    - Nomor WhatsApp
    - Password awal (minimal 8 karakter)
    - Peran: `Anggota` atau `Admin`
-4. Anggota login ke dashboard dengan nomor + password tersebut.
+4. Anggota login ke dashboard dengan nomor WhatsApp **atau** nama + password.
 5. Saat anggota mengirim WhatsApp dari nomornya, transaksi masuk ke akunnya.
 
 Anggota hanya melihat datanya sendiri. Admin bisa memilih cakupan
-**Saya / nama anggota / Semua** di Dashboard, Transaksi, dan Laporan.
+**Saya / nama anggota / Semua** di Dashboard, Transaksi, dan Laporan. Default
+admin adalah **Semua anggota**; kartu total saldo mengikuti cakupan tersebut,
+sedangkan daftar **Dompet saya** tetap milik akun yang login.
 
 ---
 
@@ -436,7 +481,10 @@ docker compose up -d
 ```
 
 Pastikan DNS domain mengarah ke IP publik rumah dan port 80/443 sudah diteruskan
-dengan benar. Untuk keamanan tambahan, tambahkan rate limit login di reverse proxy.
+dengan benar. Aplikasi sudah punya rate limit login in-memory (5 kegagalan per
+nama/nomor dan 20 per IP dalam 15 menit), tetapi tetap tambahkan rate limit di
+reverse proxy sebagai lapisan kedua. Teruskan header `X-Forwarded-For` agar
+pembatasan per IP bekerja.
 
 ---
 
@@ -460,6 +508,10 @@ docker compose logs --tail=100 db
 # mengikuti log secara langsung
 docker compose logs -f wa
 ```
+
+Compose sudah membatasi log tiap service ke 10 MB × 3 file (`json-file`), jadi
+disk tidak akan penuh karena log bot yang panjang. Isi pesan WhatsApp hanya
+tercatat jika `LOG_LEVEL=debug`.
 
 ### Restart
 
@@ -673,9 +725,10 @@ docker compose logs --tail=100 web
 
 Penyebab umum:
 
-- `AUTH_SECRET` masih nilai contoh.
+- `AUTH_SECRET` masih nilai contoh atau kurang dari 32 karakter.
+- `POSTGRES_PASSWORD` masih nilai contoh, kurang dari 12 karakter, atau
+  mengandung karakter yang merusak `DATABASE_URL`.
 - `ADMIN_PASSWORD` masih nilai contoh.
-- `POSTGRES_PASSWORD` mengandung karakter yang merusak `DATABASE_URL`.
 - Database belum siap.
 
 ### Health database gagal
@@ -690,7 +743,9 @@ database dibuat, password lama masih tersimpan di Postgres.
 
 ### Login gagal
 
-- Pastikan nomor memakai format `62...`.
+- Pastikan nomor memakai format `62...`, atau gunakan nama unik yang terdaftar.
+- Jika muncul “Terlalu banyak percobaan login”, tunggu 15 menit atau restart
+  container `web`. Hitungan rate limit disimpan di memori.
 - Ingat: `ADMIN_PASSWORD` hanya berlaku saat admin pertama dibuat.
 - Kalau masih sempat login, ubah lewat **Pengaturan → Keamanan**.
 - Kalau benar-benar terkunci, restore backup atau buat ulang instance (data hilang).
@@ -750,15 +805,33 @@ Akses di `http://192.168.1.10:3001`.
 ### Build kehabisan memori
 
 Tambahkan swap (lihat bagian [Persiapan server](#1-persiapan-server)) atau build
-di mesin lain lalu salin image. Untuk homeserver kecil, swap biasanya cukup.
+di mesin lain dengan **arsitektur yang sama** (ARM64 untuk Raspberry Pi) lalu
+salin image. Jangan memakai image hasil build x64 di Pi. Untuk homeserver kecil,
+swap biasanya cukup.
+
+### Build gagal di Raspberry Pi (`EBADPLATFORM` / arsitektur)
+
+- Cek `uname -m`; harus `aarch64`. Raspberry Pi OS 32-bit (`armv7l`) tidak didukung.
+- Pastikan `package.json` tidak memuat `@next/swc-linux-x64-gnu` atau paket SWC
+  khusus x64 lain. Project ini mengandalkan dependensi opsional Next.js yang
+  otomatis memilih `linux-arm64` saat `npm ci` di Pi.
+- Jika lockfile atau `node_modules` berasal dari mesin x64, hapus `node_modules`
+  dan jalankan `npm ci` ulang di Pi (atau build ulang image tanpa cache:
+  `docker compose build --no-cache web`).
+- Jangan menyalin image hasil build x64 ke Pi. Build di Pi atau gunakan buildx
+  multi-arch.
+- Jika build berhenti dengan `Killed`/kehabisan memori, tambahkan swap.
 
 ---
 
 ## 15. Checklist keamanan
 
-- [ ] `AUTH_SECRET`, `BOT_TOKEN`, `POSTGRES_PASSWORD`, `ADMIN_PASSWORD` sudah diganti.
+- [ ] `AUTH_SECRET` (32+), `BOT_TOKEN` (24+), `POSTGRES_PASSWORD` (12+), dan
+      `ADMIN_PASSWORD` sudah diganti dengan nilai acak.
+- [ ] `ADMIN_NAME` unik dan tidak bentrok dengan anggota lain.
 - [ ] Password admin sudah diubah lewat dashboard.
 - [ ] `.env` memiliki permission `600` dan tidak dibagikan.
+- [ ] Rate limit reverse proxy aktif jika dashboard terbuka ke internet.
 - [ ] Dashboard hanya diakses via LAN, Tailscale, atau HTTPS.
 - [ ] Port `5432` dan `3002` tidak terbuka ke internet.
 - [ ] `COOKIE_SECURE=1` jika memakai HTTPS.
