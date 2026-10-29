@@ -13,7 +13,8 @@ COPY apps/web/package.json apps/web/package.json
 COPY apps/wa/package.json apps/wa/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/shared/package.json packages/shared/package.json
-RUN npm install --no-audit --no-fund
+RUN npm config set registry http://registry.npmjs.org/ && \ 
+npm install --no-audit --no-fund --maxsockets=4
 
 # ─── Build Next.js ───────────────────────────────────────────────────────────
 FROM deps AS builder

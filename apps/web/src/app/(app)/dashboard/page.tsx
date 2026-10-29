@@ -208,7 +208,10 @@ export default async function DashboardPage({
                         {tx.note || tx.categoryName || "Tanpa catatan"}
                       </p>
                       <p className="truncate text-[11px] text-slate-500">
-                        {formatDateID(new Date(tx.occurredAt))} · {tx.walletName}
+                        {formatDateID(new Date(tx.occurredAt))} ·{" "}
+                        {transfer && tx.toWalletName
+                          ? `${tx.walletName} → ${tx.toWalletName}${tx.transferIn ? " (masuk)" : ""}`
+                          : tx.walletName}
                         {tx.categoryName ? ` · ${tx.categoryName}` : ""}
                         {scope.selected === "all" ? ` · ${tx.userName}` : ""}
                       </p>

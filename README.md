@@ -49,7 +49,8 @@ tanpa biaya bulanan.
   dipilih, sedangkan daftar **Dompet saya** tetap milik akun yang login.
 - **Dompet & saldo otomatis** — tunai, bank, e-wallet. Saldo dihitung dari saldo awal
   + pemasukan − pengeluaran ± transfer.
-- **Transfer antar dompet** — tidak dihitung sebagai pemasukan/pengeluaran.
+- **Transfer antar dompet & anggota** — kirim saldo ke dompet sendiri atau ke
+  dompet anggota lain. Tidak dihitung sebagai pemasukan/pengeluaran.
 - **Dashboard web** — ringkasan bulan ini, tren 6 bulan, transaksi terbaru,
   grafik kategori, filter, pencarian, pagination, ekspor CSV.
 - **Kategori otomatis** — kategori ditebak dari kata kunci catatan, atau pilih manual
@@ -277,7 +278,9 @@ diam-diam mencatat ke dompet default.
 | `/laporan` | Ringkasan bulan ini + top 5 pengeluaran |
 | `/laporan 2026-09` | Ringkasan bulan tertentu |
 | `/laporan 9` | Bulan September tahun ini |
-| `/transfer 100rb @bca @gopay` | Transfer antar dompet |
+| `/transfer 100rb @bca @gopay` | Transfer antar dompet sendiri |
+| `/transfer 100rb ke @budi @bca` | Transfer ke dompet anggota lain (dompet asal = default) |
+| `/transfer 100rb dari @bca ke @budi @gopay` | Transfer ke anggota lain dengan dompet asal tertentu |
 | `/keluar 25rb makan siang` | Paksa catat pengeluaran |
 | `/masuk 8jt gaji` | Paksa catat pemasukan |
 | `/undo` | Batalkan transaksi terakhir (maks. 24 jam) |
@@ -286,6 +289,8 @@ diam-diam mencatat ke dompet default.
 | `/bantuan` | Bantuan |
 
 Transfer hanya memengaruhi saldo dompet dan **tidak** masuk laporan pemasukan/pengeluaran.
+Untuk transfer antar anggota, sebutkan nama anggota (atau nomor WA) setelah kata `ke`,
+lalu dompet tujuan milik anggota tersebut.
 
 ---
 

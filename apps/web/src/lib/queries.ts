@@ -171,11 +171,22 @@ export interface RecentTransaction {
   note: string;
   occurredAt: string;
   walletName: string;
+  toWalletName: string | null;
+  transferIn: boolean;
   categoryName: string | null;
   categoryEmoji: string | null;
   userName: string;
   source: string;
   isMine: boolean;
+}
+
+function scopeTransactionWhere(scope: Scope): Prisma.TransactionWhereInput {
+  return {
+    OR: [
+      { userId: { in: scope.userIds } },
+      { type: "TRANSFER", toWallet: { userId: { in: scope.userIds } } },
+    ],
+  };
 }
 
 export async function getDashboardData(user: SessionUser, scope: Scope) {
@@ -193,11 +204,12 @@ export async function getDashboardData(user: SessionUser, scope: Scope) {
       ownScopeOnly ? null : getWalletBalancesForUsers(scope.userIds),
       getCategoryTotals(scope.userIds, range.start, range.end, "EXPENSE"),
       prisma.transaction.findMany({
-        where: { userId: { in: scope.userIds } },
+        where: scopeTransactionWhere(scope),
         orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
         take: 8,
         include: {
           wallet: { select: { name: true } },
+          toWallet: { select: { name: true, userId: true } },
           category: { select: { name: true, emoji: true } },
           user: { select: { name: true } },
         },
@@ -212,6 +224,11 @@ export async function getDashboardData(user: SessionUser, scope: Scope) {
     note: row.note,
     occurredAt: row.occurredAt.toISOString(),
     walletName: row.wallet.name,
+    toWalletName: row.toWallet?.name ?? null,
+    transferIn:
+      row.type === "TRANSFER" &&
+      Boolean(row.toWallet && scope.userIds.includes(row.toWallet.userId)) &&
+      !scope.userIds.includes(row.userId),
     categoryName: row.category?.name ?? null,
     categoryEmoji: row.category?.emoji ?? null,
     userName: row.user.name,
@@ -253,6 +270,8 @@ export interface TxRow {
   dateInput: string;
   walletId: string;
   walletName: string;
+  transferIn: boolean;
+  crossMember: boolean;
   toWalletId: string | null;
   toWalletName: string | null;
   categoryId: string | null;
@@ -263,30 +282,30 @@ export interface TxRow {
 }
 
 function buildWhere(scope: Scope, filters: Omit<TransactionFilters, "page">): Prisma.TransactionWhereInput {
-  const where: Prisma.TransactionWhereInput = { userId: { in: scope.userIds } };
+  const conditions: Prisma.TransactionWhereInput[] = [scopeTransactionWhere(scope)];
 
   if (filters.month && filters.month !== "all") {
     const range = monthRange(filters.month);
-    where.occurredAt = { gte: range.start, lt: range.end };
+    conditions.push({ occurredAt: { gte: range.start, lt: range.end } });
   }
 
   if (filters.type === "INCOME" || filters.type === "EXPENSE" || filters.type === "TRANSFER") {
-    where.type = filters.type;
+    conditions.push({ type: filters.type });
   }
 
   if (filters.walletId) {
-    where.OR = [{ walletId: filters.walletId }, { toWalletId: filters.walletId }];
+    conditions.push({ OR: [{ walletId: filters.walletId }, { toWalletId: filters.walletId }] });
   }
 
   if (filters.categoryId) {
-    where.categoryId = filters.categoryId;
+    conditions.push({ categoryId: filters.categoryId });
   }
 
   if (filters.q?.trim()) {
-    where.note = { contains: filters.q.trim(), mode: "insensitive" };
+    conditions.push({ note: { contains: filters.q.trim(), mode: "insensitive" } });
   }
 
-  return where;
+  return { AND: conditions };
 }
 
 interface TxWithRelations {
@@ -300,13 +319,13 @@ interface TxWithRelations {
   walletId: string;
   wallet: { name: string };
   toWalletId: string | null;
-  toWallet: { name: string } | null;
+  toWallet: { name: string; userId: string } | null;
   categoryId: string | null;
   category: { name: string; emoji: string } | null;
   user: { name: string };
 }
 
-function mapTxRow(row: TxWithRelations): TxRow {
+function mapTxRow(row: TxWithRelations, scope: Scope): TxRow {
   return {
     id: row.id,
     userId: row.userId,
@@ -317,6 +336,13 @@ function mapTxRow(row: TxWithRelations): TxRow {
     dateInput: utcToDateInput(row.occurredAt),
     walletId: row.walletId,
     walletName: row.wallet.name,
+    transferIn:
+      row.type === "TRANSFER" &&
+      Boolean(row.toWallet && scope.userIds.includes(row.toWallet.userId)) &&
+      !scope.userIds.includes(row.userId),
+    crossMember:
+      row.type === "TRANSFER" &&
+      Boolean(row.toWallet && row.toWallet.userId !== row.userId),
     toWalletId: row.toWalletId,
     toWalletName: row.toWallet?.name ?? null,
     categoryId: row.categoryId,
@@ -329,7 +355,7 @@ function mapTxRow(row: TxWithRelations): TxRow {
 
 const TX_INCLUDE = {
   wallet: { select: { name: true } },
-  toWallet: { select: { name: true } },
+  toWallet: { select: { name: true, userId: true } },
   category: { select: { name: true, emoji: true } },
   user: { select: { name: true } },
   // userId ikut terambil otomatis
@@ -359,7 +385,7 @@ export async function getTransactionPage(scope: Scope, filters: TransactionFilte
   const expense = Number(totals.find((row) => row.type === "EXPENSE")?._sum.amount ?? 0);
 
   return {
-    rows: rows.map((row) => mapTxRow(row as TxWithRelations)),
+    rows: rows.map((row) => mapTxRow(row as TxWithRelations, scope)),
     total,
     page: filters.page,
     pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)),
@@ -379,7 +405,7 @@ export async function getTransactionsForExport(
     orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
     take: 5000,
   });
-  return rows.map((row) => mapTxRow(row as TxWithRelations));
+  return rows.map((row) => mapTxRow(row as TxWithRelations, scope));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

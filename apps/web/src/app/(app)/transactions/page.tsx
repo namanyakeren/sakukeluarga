@@ -244,8 +244,10 @@ export default async function TransactionsPage({
                       ) : null}
                     </div>
                     <p className="mt-0.5 truncate text-[11px] text-slate-500">
-                      {formatDateID(new Date(tx.occurredAt))} · {tx.walletName}
-                      {transfer && tx.toWalletName ? ` → ${tx.toWalletName}` : ""}
+                      {formatDateID(new Date(tx.occurredAt))} ·{" "}
+                      {transfer && tx.toWalletName
+                        ? `${tx.walletName} → ${tx.toWalletName}${tx.transferIn ? " (masuk)" : ""}`
+                        : tx.walletName}
                       {tx.categoryName ? ` · ${tx.categoryName}` : ""}
                       {showingAll ? ` · ${tx.userName}` : ""}
                     </p>
@@ -268,23 +270,25 @@ export default async function TransactionsPage({
 
                     {tx.userId === user.id ? (
                       <div className="flex items-center gap-0.5">
-                        <TransactionDialog
-                          wallets={selfOptions.wallets}
-                          categories={selfOptions.categories}
-                          defaultDate={todayDate}
-                          existing={{
-                            id: tx.id,
-                            type: tx.type,
-                            amount: tx.amount,
-                            walletId: tx.walletId,
-                            toWalletId: tx.toWalletId,
-                            categoryId: tx.categoryId,
-                            note: tx.note,
-                            dateInput: tx.dateInput,
-                          }}
-                          trigger={<IconEdit className="h-3.5 w-3.5" />}
-                          triggerClassName="icon-btn h-7 w-7"
-                        />
+                        {tx.crossMember ? null : (
+                          <TransactionDialog
+                            wallets={selfOptions.wallets}
+                            categories={selfOptions.categories}
+                            defaultDate={todayDate}
+                            existing={{
+                              id: tx.id,
+                              type: tx.type,
+                              amount: tx.amount,
+                              walletId: tx.walletId,
+                              toWalletId: tx.toWalletId,
+                              categoryId: tx.categoryId,
+                              note: tx.note,
+                              dateInput: tx.dateInput,
+                            }}
+                            trigger={<IconEdit className="h-3.5 w-3.5" />}
+                            triggerClassName="icon-btn h-7 w-7"
+                          />
+                        )}
                         <DeleteButton
                           action={deleteTransactionAction}
                           value={tx.id}

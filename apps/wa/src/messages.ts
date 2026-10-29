@@ -4,6 +4,7 @@ import {
   getSummary,
   getWalletBalances,
   prisma,
+  recordMemberTransfer,
   recordTransaction,
   recordTransfer,
 } from "@saku/db";
@@ -15,23 +16,12 @@ import {
   monthKey,
   monthLabelID,
   monthRange,
-  parseAmount,
   parseMessage,
   walletTypeLabel,
   type TxKind,
 } from "@saku/shared";
 import type { WAMessage, WASocket } from "@whiskeysockets/baileys";
 import { logger } from "./logger";
-
-const UNREGISTERED_COOLDOWN_MS = 10 * 60 * 1000;
-const unregisteredNotified = new Map<string, number>();
-
-const UNREGISTERED_REPLY = [
-  "👋 Nomor ini belum terdaftar di *Saku Keluarga*.",
-  "",
-  "Minta admin keluarga menambahkan nomor kamu di dashboard:",
-  "*Pengaturan → Anggota Keluarga → Tambah anggota*.",
-].join("\n");
 
 const HELP_TEXT = [
   "*Saku Keluarga* 👋",
@@ -47,7 +37,9 @@ const HELP_TEXT = [
   "/laporan — ringkasan bulan ini",
   "/laporan 2026-09 — ringkasan bulan lain",
   "/undo — batalkan transaksi terakhir",
-  "/transfer 100rb @bca @gopay",
+  "/transfer 100rb @bca @gopay — antar dompet sendiri",
+  "/transfer 100rb ke @budi @bca — ke anggota lain",
+  "/transfer 100rb dari @bca ke @budi @gopay",
   "/dompet — daftar dompet",
   "/kategori — daftar kategori",
   "/bantuan — bantuan ini",
@@ -257,13 +249,8 @@ export async function handleIncoming(socket: WASocket, message: WAMessage): Prom
 
   const user = await prisma.user.findUnique({ where: { waNumber: fromNumber } });
   if (!user) {
-    const last = unregisteredNotified.get(fromNumber) ?? 0;
-    if (Date.now() - last > UNREGISTERED_COOLDOWN_MS) {
-      unregisteredNotified.set(fromNumber, Date.now());
-      await sendText(socket, jid, UNREGISTERED_REPLY).catch((error) =>
-        logger.warn({ error }, "Gagal mengirim pesan belum terdaftar"),
-      );
-    }
+    // Nomor asing diabaikan tanpa balasan supaya chat pribadi tetap tenang.
+    logger.info({ fromNumber }, "Pesan dari nomor tidak terdaftar diabaikan");
     await mark("IGNORED");
     return;
   }
@@ -427,17 +414,74 @@ async function handleRecord(
   return txReply(result, kind);
 }
 
+const TRANSFER_FORMAT = [
+  "Format transfer:",
+  "• Antar dompet sendiri: /transfer <nominal> @dompet-asal @dompet-tujuan",
+  "• Ke anggota lain: /transfer <nominal> ke @anggota @dompet-tujuan",
+  "• Pilih dompet asal: /transfer <nominal> dari @dompet-asal ke @anggota @dompet-tujuan",
+  "",
+  "Contoh:",
+  "• /transfer 100rb @bca @gopay",
+  "• /transfer 100rb ke @budi @bca",
+].join("\n");
+
+const MEMBER_TRANSFER_RE = /\bke\s+@([\p{L}\p{N}_.-]+)(?:\s+@([\p{L}\p{N}_.-]+))?/iu;
+
 async function handleTransfer(user: User, rest: string, raw: string): Promise<string> {
   const parsed = parseMessage(rest);
-  const { mentions } = extractTags(rest);
-  const amount = parseAmount(rest);
 
-  if (!parsed.ok || !amount || mentions.length < 2) {
+  if (!parsed.ok) return TRANSFER_FORMAT;
+  const amount = parsed.data.amount;
+
+  const memberMatch = MEMBER_TRANSFER_RE.exec(rest);
+  if (memberMatch) {
+    const memberHint = memberMatch[1];
+    const toHint = memberMatch[2] ?? null;
+
+    if (!toHint) {
+      return [
+        "Sebutkan juga dompet tujuan transfer.",
+        "",
+        "Contoh: /transfer 100rb ke @budi @bca",
+      ].join("\n");
+    }
+
+    const fromHint =
+      new RegExp(`\\bdari\\s+@([\\p{L}\\p{N}_.-]+)`, "iu").exec(rest)?.[1] ?? null;
+    const note = parsed.data.note
+      .replace(/\b(dari|ke)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const result = await recordMemberTransfer({
+      userId: user.id,
+      amount,
+      fromHint,
+      toUserHint: memberHint,
+      toHint,
+      note,
+      occurredAt: parsed.data.occurredAt,
+      source: "WA",
+      rawMessage: raw,
+    });
+
+    if (!result.ok) return `❌ ${result.error}`;
+
     return [
-      "Format: /transfer <nominal> @dompet-asal @dompet-tujuan",
-      "Contoh: /transfer 100rb @bca @gopay",
-    ].join("\n");
+      `🔄 *Transfer ke ${result.recipient.name}*`,
+      "",
+      `*${formatIDR(amount)}*`,
+      `${result.from.name} → ${result.to.name} (${result.recipient.name})`,
+      note ? `📝 ${note}` : null,
+      "",
+      `Saldo ${result.from.name}: *${formatIDR(result.from.balance)}*`,
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join("\n");
   }
+
+  const { mentions } = extractTags(rest);
+  if (mentions.length < 2) return TRANSFER_FORMAT;
 
   const result = await recordTransfer({
     userId: user.id,

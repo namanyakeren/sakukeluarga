@@ -88,25 +88,30 @@ export async function getWalletBalancesForUsers(
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
 
+  const walletIds = wallets.map((wallet) => wallet.id);
+  if (walletIds.length === 0) return { wallets: [], total: 0 };
+
+  // Dihitung berdasarkan kepemilikan dompet, bukan userId transaksi, supaya
+  // transfer antar anggota tetap menambah saldo dompet penerima.
   const [incomes, expenses, transfersOut, transfersIn] = await Promise.all([
     prisma.transaction.groupBy({
       by: ["walletId"],
-      where: { userId: { in: ids }, type: "INCOME" },
+      where: { walletId: { in: walletIds }, type: "INCOME" },
       _sum: { amount: true },
     }),
     prisma.transaction.groupBy({
       by: ["walletId"],
-      where: { userId: { in: ids }, type: "EXPENSE" },
+      where: { walletId: { in: walletIds }, type: "EXPENSE" },
       _sum: { amount: true },
     }),
     prisma.transaction.groupBy({
       by: ["walletId"],
-      where: { userId: { in: ids }, type: "TRANSFER" },
+      where: { walletId: { in: walletIds }, type: "TRANSFER" },
       _sum: { amount: true },
     }),
     prisma.transaction.groupBy({
       by: ["toWalletId"],
-      where: { userId: { in: ids }, type: "TRANSFER", toWalletId: { not: null } },
+      where: { toWalletId: { in: walletIds }, type: "TRANSFER" },
       _sum: { amount: true },
     }),
   ]);
@@ -484,6 +489,167 @@ export async function recordTransfer(
     transaction,
     from: find(fromResult.wallet.id),
     to: find(toResult.wallet.id),
+    balances,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Transfer antar anggota keluarga
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface RecordMemberTransferInput {
+  userId: string;
+  amount: number;
+  fromWalletId?: string | null;
+  fromHint?: string | null;
+  toUserId?: string | null;
+  toUserHint?: string | null;
+  toWalletId?: string | null;
+  toHint?: string | null;
+  note?: string;
+  occurredAt?: Date;
+  source: TxSource;
+  rawMessage?: string | null;
+}
+
+export type RecordMemberTransferResult =
+  | {
+      ok: true;
+      transaction: Transaction;
+      from: WalletBalance;
+      to: WalletBalance;
+      recipient: { id: string; name: string };
+      balances: BalancesResult;
+    }
+  | { ok: false; error: string };
+
+interface MemberTarget {
+  id: string;
+  name: string;
+  waNumber: string;
+}
+
+async function resolveMemberTarget(
+  hint: string,
+  excludeUserId: string,
+): Promise<{ ok: true; member: MemberTarget } | { ok: false; error: string }> {
+  const members = await prisma.user.findMany({
+    where: { id: { not: excludeUserId } },
+    select: { id: true, name: true, waNumber: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (members.length === 0) {
+    return { ok: false, error: "Belum ada anggota lain yang bisa menerima transfer." };
+  }
+
+  const digits = normalizeWaNumber(hint);
+  const nameKey = normalizeName(hint);
+
+  const byNumber =
+    digits.length >= 8 ? members.find((member) => member.waNumber === digits) : undefined;
+  if (byNumber) return { ok: true, member: byNumber };
+
+  const exact = members.find((member) => normalizeName(member.name) === nameKey);
+  if (exact) return { ok: true, member: exact };
+
+  const partial = members.filter((member) => normalizeName(member.name).includes(nameKey));
+  if (partial.length === 1) return { ok: true, member: partial[0] };
+
+  const choices = members.map((member) => `@${member.name}`).join(", ");
+  if (partial.length > 1) {
+    return {
+      ok: false,
+      error: `Nama "${hint}" cocok dengan lebih dari satu anggota (${choices}). Tulis nama yang lebih lengkap.`,
+    };
+  }
+  return { ok: false, error: `Anggota "${hint}" tidak ditemukan. Pilihan: ${choices}.` };
+}
+
+/**
+ * Transfer dari dompet anggota pengirim ke dompet anggota lain.
+ * Dicatat sebagai satu baris TRANSFER: saldo dompet asal berkurang dan
+ * saldo dompet tujuan bertambah, tanpa dihitung sebagai pemasukan/pengeluaran.
+ */
+export async function recordMemberTransfer(
+  input: RecordMemberTransferInput,
+): Promise<RecordMemberTransferResult> {
+  const amount = Math.round(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, error: "Nominal harus lebih dari 0." };
+  }
+  if (amount > 1_000_000_000_000) {
+    return { ok: false, error: "Nominal terlalu besar." };
+  }
+
+  let recipient: MemberTarget;
+  if (input.toUserId) {
+    const found = await prisma.user.findUnique({
+      where: { id: input.toUserId },
+      select: { id: true, name: true, waNumber: true },
+    });
+    if (!found) return { ok: false, error: "Anggota tujuan tidak ditemukan." };
+    recipient = found;
+  } else {
+    const found = await resolveMemberTarget(input.toUserHint ?? "", input.userId);
+    if (!found.ok) return found;
+    recipient = found.member;
+  }
+
+  if (recipient.id === input.userId) {
+    return { ok: false, error: "Tidak bisa transfer ke diri sendiri." };
+  }
+
+  const fromResult = await resolveWallet(input.userId, input.fromWalletId, input.fromHint);
+  if (!fromResult.ok) return fromResult;
+
+  const toResult = await resolveWallet(recipient.id, input.toWalletId, input.toHint);
+  if (!toResult.ok) {
+    return {
+      ok: false,
+      error: `Dompet tujuan ${recipient.name} tidak ditemukan. ${toResult.error}`,
+    };
+  }
+
+  if (fromResult.wallet.id === toResult.wallet.id) {
+    return { ok: false, error: "Dompet asal dan tujuan tidak boleh sama." };
+  }
+
+  const transaction = await prisma.transaction.create({
+    data: {
+      userId: input.userId,
+      walletId: fromResult.wallet.id,
+      toWalletId: toResult.wallet.id,
+      categoryId: null,
+      type: "TRANSFER",
+      amount: BigInt(amount),
+      note: (input.note ?? "").slice(0, 240),
+      occurredAt: input.occurredAt ?? new Date(),
+      source: input.source,
+      rawMessage: input.rawMessage?.slice(0, 1000) ?? null,
+    },
+  });
+
+  const [balances, recipientBalances] = await Promise.all([
+    getWalletBalances(input.userId),
+    getWalletBalances(recipient.id),
+  ]);
+
+  const find = (list: BalancesResult, id: string): WalletBalance =>
+    list.wallets.find((item) => item.id === id) ?? {
+      id,
+      name: id,
+      type: "OTHER",
+      initialBalance: 0,
+      balance: 0,
+    };
+
+  return {
+    ok: true,
+    transaction,
+    from: find(balances, fromResult.wallet.id),
+    to: find(recipientBalances, toResult.wallet.id),
+    recipient: { id: recipient.id, name: recipient.name },
     balances,
   };
 }
