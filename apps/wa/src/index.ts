@@ -1,26 +1,27 @@
 import { prisma } from "@saku/db";
 import { startBot, shutdown, state } from "./bot";
 import { startStatusServer } from "./http";
+import { logger } from "./logger";
 
 const port = Number(process.env.BOT_HTTP_PORT ?? 3002);
 
 startStatusServer(() => state, port);
 
 if (!process.env.DATABASE_URL) {
-  console.error("DATABASE_URL belum diisi. Bot tidak bisa menyimpan transaksi.");
+  logger.error("DATABASE_URL belum diisi. Bot tidak bisa menyimpan transaksi.");
 }
 
 process.on("unhandledRejection", (reason) => {
-  console.error("[process] Unhandled rejection:", reason);
+  logger.error({ err: reason }, "Unhandled rejection");
 });
 
 process.on("uncaughtException", (error) => {
-  console.error("[process] Uncaught exception:", error);
+  logger.error({ err: error }, "Uncaught exception");
 });
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
-    console.log(`[process] Menerima ${signal}, menutup koneksi...`);
+    logger.info({ signal }, "Menerima sinyal, menutup koneksi...");
     void shutdown().finally(async () => {
       await prisma.$disconnect();
       process.exit(0);

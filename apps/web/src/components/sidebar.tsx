@@ -2,31 +2,44 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { ComponentType, SVGProps } from "react";
 import { logoutAction } from "@/lib/actions/auth";
 import {
+  IconBolt,
   IconChart,
   IconHome,
   IconList,
   IconLogout,
   IconSettings,
   IconTag,
+  IconTerminal,
   IconWallet,
 } from "@/components/icons";
 import { Avatar, Brand, cn } from "@/components/ui";
 
-const NAV = [
+interface NavItem {
+  href: string;
+  label: string;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
+  adminOnly?: boolean;
+}
+
+const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: IconHome },
   { href: "/transactions", label: "Transaksi", icon: IconList },
   { href: "/reports", label: "Laporan", icon: IconChart },
+  { href: "/electricity", label: "Listrik", icon: IconBolt },
   { href: "/wallets", label: "Dompet", icon: IconWallet },
   { href: "/categories", label: "Kategori", icon: IconTag },
+  { href: "/logs", label: "Log Aplikasi", icon: IconTerminal, adminOnly: true },
   { href: "/settings", label: "Pengaturan", icon: IconSettings },
 ];
 
-const MOBILE_NAV = [
+const MOBILE_NAV: NavItem[] = [
   { href: "/dashboard", label: "Beranda", icon: IconHome },
   { href: "/transactions", label: "Transaksi", icon: IconList },
   { href: "/reports", label: "Laporan", icon: IconChart },
+  { href: "/electricity", label: "Listrik", icon: IconBolt },
   { href: "/wallets", label: "Dompet", icon: IconWallet },
   { href: "/settings", label: "Atur", icon: IconSettings },
 ];
@@ -35,6 +48,10 @@ export function Sidebar({ user }: { user: { name: string; role: string } }) {
   const pathname = usePathname();
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
+  const navItems = NAV.filter((item) => !item.adminOnly || user.role === "ADMIN");
+  const mobileNavItems = MOBILE_NAV.filter(
+    (item) => !item.adminOnly || user.role === "ADMIN",
+  );
 
   return (
     <>
@@ -48,7 +65,7 @@ export function Sidebar({ user }: { user: { name: string; role: string } }) {
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-2">
-          {NAV.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
             return (
@@ -107,8 +124,13 @@ export function Sidebar({ user }: { user: { name: string; role: string } }) {
         </div>
       </header>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-        {MOBILE_NAV.map((item) => {
+      <nav
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-30 grid border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden",
+          mobileNavItems.length > 5 ? "grid-cols-6" : "grid-cols-5",
+        )}
+      >
+        {mobileNavItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
           return (

@@ -42,6 +42,7 @@ model User {
   categories      Category[]
   transactions    Transaction[]
   inboundMessages InboundMessage[]
+  electricityPurchases ElectricityPurchase[]
 
   @@map("users")
 }
@@ -106,6 +107,27 @@ model Transaction {
   @@index([walletId])
   @@index([categoryId])
   @@map("transactions")
+}
+
+model ElectricityPurchase {
+  id              String   @id @default(cuid())
+  purchasedAt     DateTime
+  kwhBefore       Decimal  @db.Decimal(12, 2)
+  kwhAmount       Decimal  @db.Decimal(12, 2)
+  kwhAfter        Decimal  @db.Decimal(12, 2)
+  price           BigInt
+  note            String   @default("")
+  source          String   @default("WEB")
+  rawMessage      String?
+  createdByUserId String?
+  createdByName   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdBy User? @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([purchasedAt])
+  @@map("electricity_purchases")
 }
 
 model InboundMessage {

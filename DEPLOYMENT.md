@@ -562,6 +562,12 @@ Keluar dengan `\q`.
 
 Data utama ada di volume `db-data`. Backup rutin sangat disarankan.
 
+### Dari dashboard (admin)
+
+Buka **Pengaturan → Backup & restore database** untuk membuat, mengunduh,
+memulihkan, atau menghapus backup tanpa masuk ke server. Backup disimpan di volume
+`backups-data` dan backup pengaman dibuat otomatis sebelum restore.
+
 ### Backup manual
 
 ```bash

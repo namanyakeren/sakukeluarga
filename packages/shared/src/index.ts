@@ -4,3 +4,4 @@ export * from "./dates";
 export * from "./parse";
 export * from "./defaults";
 export * from "./format";
+export * from "./electricity";

@@ -1,4 +1,5 @@
 import {
+  Browsers,
   DisconnectReason,
   fetchLatestBaileysVersion,
   makeWASocket,
@@ -9,6 +10,7 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 import qrcode from "qrcode-terminal";
+import { antiBanConfig } from "./anti-ban";
 import { logger } from "./logger";
 import { handleIncoming, registerLidPhone } from "./messages";
 
@@ -36,6 +38,23 @@ export const state: BotState = {
 let activeSocket: WASocket | null = null;
 let connecting = false;
 let reconnectTimer: NodeJS.Timeout | null = null;
+let reconnectAttempts = 0;
+
+const RECONNECT_BASE_MS = 3000;
+const RECONNECT_MAX_MS = 5 * 60 * 1000;
+
+/**
+ * Jeda reconnect bertambah secara eksponensial dengan jitter acak. Tujuannya
+ * menghindari pola koneksi berulang yang mencurigakan bagi WhatsApp.
+ */
+function nextReconnectDelay(): number {
+  reconnectAttempts = Math.min(reconnectAttempts + 1, 10);
+  const base = Math.min(
+    RECONNECT_MAX_MS,
+    RECONNECT_BASE_MS * 2 ** (reconnectAttempts - 1),
+  );
+  return Math.round(base * (0.5 + Math.random() * 0.5));
+}
 
 function scheduleReconnect(delayMs: number): void {
   if (reconnectTimer) clearTimeout(reconnectTimer);
@@ -43,6 +62,17 @@ function scheduleReconnect(delayMs: number): void {
     reconnectTimer = null;
     void startBot();
   }, delayMs);
+}
+
+/** Mengosongkan isi folder sesi tanpa menghapus foldernya (volume bisa EBUSY). */
+function clearAuthDir(): void {
+  try {
+    for (const entry of fs.readdirSync(AUTH_DIR)) {
+      fs.rmSync(path.join(AUTH_DIR, entry), { recursive: true, force: true });
+    }
+  } catch (error) {
+    logger.error({ err: error }, "Gagal menghapus isi folder sesi");
+  }
 }
 
 export async function startBot(): Promise<void> {
@@ -62,12 +92,16 @@ export async function startBot(): Promise<void> {
       logger.warn("Gagal mengambil versi WhatsApp terbaru, memakai versi bawaan.");
     }
 
+    logger.info({ antiBan: antiBanConfig() }, "Konfigurasi anti-blokir WhatsApp");
+
     const socket = makeWASocket({
       ...(version ? { version } : {}),
       auth: authState,
       logger,
-      browser: ["Saku Keluarga", "Chrome", "1.0.0"],
-      markOnlineOnConnect: true,
+      // Browser standar WhatsApp Web lebih aman daripada string kustom.
+      browser: Browsers.ubuntu("Chrome"),
+      // Jangan menandai nomor selalu online; perilaku ini lebih wajar untuk bot.
+      markOnlineOnConnect: false,
       syncFullHistory: false,
       generateHighQualityLinkPreview: false,
       defaultQueryTimeoutMs: 60_000,
@@ -103,6 +137,7 @@ export async function startBot(): Promise<void> {
       }
 
       if (connection === "open") {
+        reconnectAttempts = 0;
         state.connected = true;
         state.qr = null;
         state.me = socket.user?.id ?? null;
@@ -123,17 +158,18 @@ export async function startBot(): Promise<void> {
           logger.warn(
             "Sesi WhatsApp logout / perangkat dihapus. Menghapus kredensial dan meminta QR baru.",
           );
-          try {
-            fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-          } catch (error) {
-            logger.error({ error }, "Gagal menghapus folder sesi");
-          }
-          scheduleReconnect(3000);
+          clearAuthDir();
+          reconnectAttempts = 0;
+          scheduleReconnect(4000);
           return;
         }
 
-        logger.warn({ statusCode }, "Koneksi WhatsApp terputus, mencoba menyambung ulang...");
-        scheduleReconnect(3000);
+        const delayMs = nextReconnectDelay();
+        logger.warn(
+          { statusCode, delayMs, attempt: reconnectAttempts },
+          "Koneksi WhatsApp terputus, menyambung ulang dengan jeda bertahap",
+        );
+        scheduleReconnect(delayMs);
       }
     });
 
@@ -152,8 +188,12 @@ export async function startBot(): Promise<void> {
       }
     });
   } catch (error) {
-    logger.error({ error }, "Gagal memulai bot, mencoba lagi dalam 5 detik");
-    scheduleReconnect(5000);
+    const delayMs = nextReconnectDelay();
+    logger.error(
+      { err: error, delayMs },
+      "Gagal memulai bot, mencoba lagi dengan jeda bertahap",
+    );
+    scheduleReconnect(delayMs);
   } finally {
     connecting = false;
   }

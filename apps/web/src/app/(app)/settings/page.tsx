@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { APP_TZ, formatNumberID, formatWaNumber } from "@saku/shared";
+import { BackupPanel } from "@/components/backup-panel";
 import { DeleteButton } from "@/components/delete-button";
-import { IconLock, IconPlus, IconUsers } from "@/components/icons";
+import { IconLock, IconPlus, IconTerminal, IconUsers } from "@/components/icons";
 import {
   AddMemberDialog,
   MemberRoleForm,
@@ -12,13 +14,17 @@ import { WaStatusPanel, WhatsappHint } from "@/components/wa-panel";
 import { Avatar, Badge, PageHeader, SectionCard } from "@/components/ui";
 import { deleteMemberAction } from "@/lib/actions/members";
 import { requireUser } from "@/lib/auth";
+import { listBackups } from "@/lib/backup";
 import { getSettingsData } from "@/lib/queries";
 
 export const metadata: Metadata = { title: "Pengaturan" };
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const data = await getSettingsData(user);
+  const [data, backups] = await Promise.all([
+    getSettingsData(user),
+    user.role === "ADMIN" ? listBackups() : Promise.resolve([]),
+  ]);
 
   return (
     <div className="space-y-5">
@@ -48,6 +54,36 @@ export default async function SettingsPage() {
           </div>
         </SectionCard>
       </div>
+
+      {user.role === "ADMIN" ? (
+        <>
+          <SectionCard
+            title="Log aplikasi"
+            description="Semua error dan notifikasi dari dashboard web dan bot WhatsApp"
+            action={
+              <Link href="/logs" className="btn-ghost btn-sm">
+                <IconTerminal className="h-3.5 w-3.5" />
+                Buka log
+              </Link>
+            }
+          >
+            <p className="text-xs leading-relaxed text-slate-600">
+              Halaman log menampilkan catatan terbaru dari container{" "}
+              <code className="rounded bg-slate-100 px-1">web</code> dan{" "}
+              <code className="rounded bg-slate-100 px-1">wa</code>, lengkap dengan
+              level, waktu, dan detail error. Bisa difilter berdasarkan sumber, level,
+              atau kata kunci.
+            </p>
+          </SectionCard>
+
+          <SectionCard
+            title="Backup & restore database"
+            description="Buat salinan database atau pulihkan dari backup tanpa masuk ke server"
+          >
+            <BackupPanel backups={backups} />
+          </SectionCard>
+        </>
+      ) : null}
 
       {user.role === "ADMIN" ? (
         <SectionCard
@@ -175,13 +211,6 @@ export default async function SettingsPage() {
               </dd>
             </div>
           </dl>
-
-          <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
-            Backup database:{" "}
-            <code className="text-slate-700">
-              docker compose exec -T db pg_dump -U $POSTGRES_USER $POSTGRES_DB &gt; backup.sql
-            </code>
-          </p>
         </SectionCard>
       </div>
     </div>

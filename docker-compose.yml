@@ -22,6 +22,28 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Menyiapkan volume log & backup agar bisa ditulis container non-root (uid 1000).
+  logs-init:
+    image: node:22-bookworm-slim
+    restart: "no"
+    user: "0:0"
+    command:
+      [
+        "sh",
+        "-c",
+        "mkdir -p /logs /backups && chown -R 1000:1000 /logs /backups && chmod 0770 /logs /backups",
+      ]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - logs-data:/logs
+      - backups-data:/backups
+    logging:
+      driver: json-file
+      options:
+        max-size: "1m"
+        max-file: "1"
+
   web:
     build:
       context: .
@@ -35,12 +57,20 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-saku}:${POSTGRES_PASSWORD:-saku}@db:5432/${POSTGRES_DB:-saku}?schema=public
       WA_BOT_URL: http://wa:3002
+      LOG_DIR: /logs
+      WEB_LOG_DIR: /logs
+      BACKUP_DIR: /backups
       TZ: ${APP_TIMEZONE:-Asia/Jakarta}
     ports:
       - "${APP_PORT:-3000}:3000"
+    volumes:
+      - logs-data:/logs
+      - backups-data:/backups
     depends_on:
       db:
         condition: service_healthy
+      logs-init:
+        condition: service_completed_successfully
     healthcheck:
       test:
         [
@@ -72,14 +102,18 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-saku}:${POSTGRES_PASSWORD:-saku}@db:5432/${POSTGRES_DB:-saku}?schema=public
       BOT_HTTP_PORT: 3002
+      WA_LOG_DIR: /logs
       TZ: ${APP_TIMEZONE:-Asia/Jakarta}
     volumes:
       - wa-auth:/data/auth
+      - logs-data:/logs
     depends_on:
       db:
         condition: service_healthy
       web:
         condition: service_healthy
+      logs-init:
+        condition: service_completed_successfully
     healthcheck:
       test:
         [
@@ -101,3 +135,5 @@ services:
 volumes:
   db-data:
   wa-auth:
+  logs-data:
+  backups-data:

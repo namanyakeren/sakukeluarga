@@ -21,6 +21,8 @@ import {
   type TxKind,
 } from "@saku/shared";
 import type { WAMessage, WASocket } from "@whiskeysockets/baileys";
+import { enqueueText, shouldReplyNonText } from "./anti-ban";
+import { handleElectricity } from "./electricity";
 import { logger } from "./logger";
 
 const HELP_TEXT = [
@@ -42,6 +44,7 @@ const HELP_TEXT = [
   "/transfer 100rb dari @bca ke @budi @gopay",
   "/dompet — daftar dompet",
   "/kategori — daftar kategori",
+  "/listrik 1234,5 50 1284,5 150rb — catat token listrik",
   "/bantuan — bantuan ini",
   "",
   "*Tag opsional*",
@@ -119,8 +122,9 @@ function rememberSentMessage(messageId?: string | null): void {
 }
 
 async function sendText(socket: WASocket, jid: string, text: string): Promise<void> {
-  const sent = await socket.sendMessage(jid, { text });
-  rememberSentMessage(sent?.key?.id);
+  // Semua pesan keluar melewati antrean anti-blokir (jeda, typing, kuota).
+  const messageId = await enqueueText(socket, jid, text);
+  rememberSentMessage(messageId);
 }
 
 export function registerLidPhone(lid: string, jidOrPhone: string): void {
@@ -256,11 +260,16 @@ export async function handleIncoming(socket: WASocket, message: WAMessage): Prom
   }
 
   if (!text) {
-    await sendText(
-      socket,
-      jid,
-      "Saat ini saya hanya bisa membaca pesan teks. Ketik /bantuan untuk contoh format.",
-    ).catch(() => undefined);
+    // Batasi balasan non-teks supaya tidak dianggap spam.
+    if (shouldReplyNonText(jid)) {
+      await sendText(
+        socket,
+        jid,
+        "Saat ini saya hanya bisa membaca pesan teks. Ketik /bantuan untuk contoh format.",
+      ).catch(() => undefined);
+    } else {
+      logger.debug({ jid }, "Balasan non-teks ditahan (cooldown)");
+    }
     await mark("IGNORED", user.id);
     return;
   }
@@ -274,7 +283,7 @@ export async function handleIncoming(socket: WASocket, message: WAMessage): Prom
     logger.info({ userId: user.id }, "Pesan diproses");
     logger.debug({ userId: user.id, command: text.slice(0, 40) }, "Detail perintah");
   } catch (error) {
-    logger.error({ error, userId: user.id }, "Gagal memproses transaksi");
+    logger.error({ err: error, userId: user.id }, "Gagal memproses transaksi");
     await mark("FAILED", user.id, (error as Error).message);
     await sendText(
       socket,
@@ -368,6 +377,11 @@ async function handleCommand(user: User, text: string): Promise<string> {
     case "undo":
     case "batal":
       return handleUndo(user);
+
+    case "listrik":
+    case "token":
+    case "pln":
+      return handleElectricity(user, rest, text);
 
     case "dompet":
     case "wallet":

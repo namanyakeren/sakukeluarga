@@ -6,7 +6,8 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   experimental: {
     serverActions: {
-      bodySizeLimit: "1mb",
+      // Cukup untuk mengunggah file backup database (.dump/.sql).
+      bodySizeLimit: "64mb",
     },
   },
 };

@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import type { BotState } from "./bot";
+import { logger } from "./logger";
 
 function json(
   res: import("node:http").ServerResponse,
@@ -38,10 +39,10 @@ export function startStatusServer(getState: () => BotState, port: number): void 
   });
 
   server.listen(port, "0.0.0.0", () => {
-    console.log(`[http] Status bot tersedia di port ${port}`);
+    logger.info({ port }, "Status bot tersedia");
   });
 
   server.on("error", (error) => {
-    console.error("[http] Gagal membuka port status:", error);
+    logger.error({ err: error }, "Gagal membuka port status bot");
   });
 }

@@ -135,6 +135,12 @@ export const IconChat = (props: IconProps) => (
   </Base>
 );
 
+export const IconBolt = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M13 2.5 4.5 14H11l-1 7.5L19.5 10H13l0-7.5Z" />
+  </Base>
+);
+
 export const IconCheck = (props: IconProps) => (
   <Base {...props}>
     <path d="m5 12.5 4.5 4.5L19 7" />
@@ -159,5 +165,33 @@ export const IconLock = (props: IconProps) => (
   <Base {...props}>
     <rect x="4.5" y="10" width="15" height="10" rx="2" />
     <path d="M8 10V7.5a4 4 0 0 1 8 0V10" />
+  </Base>
+);
+
+export const IconTerminal = (props: IconProps) => (
+  <Base {...props}>
+    <rect x="3" y="4.5" width="18" height="15" rx="2" />
+    <path d="m7 9.5 3 2.5-3 2.5M13 15h4" />
+  </Base>
+);
+
+export const IconDatabase = (props: IconProps) => (
+  <Base {...props}>
+    <ellipse cx="12" cy="5.5" rx="7.5" ry="2.8" />
+    <path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13" />
+    <path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8" />
+  </Base>
+);
+
+export const IconUpload = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M12 16V4M7.5 8.5 12 4l4.5 4.5M4 20h16" />
+  </Base>
+);
+
+export const IconShield = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M12 3.5 20 6v5.5c0 4.5-3.2 8-8 9.5-4.8-1.5-8-5-8-9.5V6l8-2.5Z" />
+    <path d="m8.5 12 2.5 2.5 4.5-4.5" />
   </Base>
 );

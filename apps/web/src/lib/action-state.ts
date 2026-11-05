@@ -1,6 +1,7 @@
 export interface ActionState {
   ok: boolean;
   error?: string;
+  message?: string;
   ts?: number;
 }
 

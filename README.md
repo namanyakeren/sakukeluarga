@@ -53,9 +53,18 @@ tanpa biaya bulanan.
   dompet anggota lain. Tidak dihitung sebagai pemasukan/pengeluaran.
 - **Dashboard web** — ringkasan bulan ini, tren 6 bulan, transaksi terbaru,
   grafik kategori, filter, pencarian, pagination, ekspor CSV.
+- **Token listrik bersama** — catat kWh sebelum, kWh yang didapat, kWh setelah,
+  tanggal, dan harga dari WhatsApp (`/listrik`, `/token`, `/pln`) atau halaman
+  **Listrik**. Data bersifat umum: tidak masuk ke dompet atau laporan pribadi.
 - **Kategori otomatis** — kategori ditebak dari kata kunci catatan, atau pilih manual
   dengan `#tag`. Kategori & dompet bisa diubah dari web.
 - **Panel WhatsApp** — status koneksi dan QR code langsung di halaman Pengaturan.
+- **Anti-blokir WhatsApp** — balasan memakai jeda acak, indikator mengetik, antrean
+  kirim, dan batas pesan per menit/hari. Reconnect memakai jeda bertahap.
+- **Log aplikasi** — admin bisa melihat semua error dan notifikasi web & bot dari
+  halaman **Log Aplikasi**, dengan filter sumber, level, dan pencarian.
+- **Backup & restore** — admin bisa membuat, mengunduh, memulihkan, dan menghapus
+  backup database langsung dari halaman Pengaturan.
 - **Anti-duplikat** — ID pesan WhatsApp disimpan, pesan ulang saat reconnect tidak
   dicatat dua kali. Balasan bot juga tidak diproses kembali sebagai transaksi baru.
 - **Zona waktu Indonesia** — `Asia/Jakarta` (bisa diganti), sehingga “kemarin”,
@@ -286,6 +295,7 @@ diam-diam mencatat ke dompet default.
 | `/undo` | Batalkan transaksi terakhir (maks. 24 jam) |
 | `/dompet` | Daftar dompet & saldo |
 | `/kategori` | Daftar kategori |
+| `/listrik 1234,5 50 1284,5 150rb` | Catat token listrik (tanggal & catatan opsional) |
 | `/bantuan` | Bantuan |
 
 Transfer hanya memengaruhi saldo dompet dan **tidak** masuk laporan pemasukan/pengeluaran.
@@ -301,9 +311,11 @@ lalu dompet tujuan milik anggota tersebut.
 | **Dashboard** | Ringkasan bulan ini, tren 6 bulan, grafik pengeluaran, transaksi terbaru |
 | **Transaksi** | Filter bulan/jenis/dompet/kategori/pencarian, tambah/ubah/hapus, transfer |
 | **Laporan** | Pemasukan, pengeluaran, selisih, rasio tabungan, kategori, tren, ekspor CSV |
+| **Listrik** | Rekap token listrik bersama: meter, kWh, biaya, harga/kWh, pemakaian |
 | **Dompet** | Tambah/ubah dompet, saldo awal, dompet default, arsip/hapus |
 | **Kategori** | Kategori pemasukan/pengeluaran, emoji, kata kunci, urutan |
-| **Pengaturan** | Profil, nomor WA, password, anggota, status/QR WhatsApp |
+| **Pengaturan** | Profil, nomor WA, password, anggota, status/QR WhatsApp, backup & restore |
+| **Log Aplikasi** | Khusus admin: semua log web & bot, filter sumber/level/pencarian |
 
 Ekspor CSV mengikuti filter laporan yang sedang aktif dan menyertakan nama anggota,
 sehingga admin bisa mengekspor data gabungan.
@@ -409,6 +421,11 @@ Saat pertama kali jalan, QR juga tercetak di terminal bot. Status HTTP bot ada d
 | `ADMIN_PASSWORD` | ya* | — | Password admin pertama (min. 8, disarankan 12+) |
 | `BOT_TOKEN` | ya | — | Token internal dashboard ↔ bot; min. 24 karakter |
 | `LOG_LEVEL` | tidak | `info` | Level log bot; `debug` mencatat cuplikan isi pesan |
+| `WA_SEND_MIN_DELAY_MS` | tidak | `900` | Jeda minimum sebelum bot membalas (ms) |
+| `WA_SEND_MAX_DELAY_MS` | tidak | `2600` | Jeda maksimum sebelum bot membalas (ms) |
+| `WA_MINUTE_MESSAGE_LIMIT` | tidak | `15` | Maksimum pesan keluar per menit |
+| `WA_DAILY_MESSAGE_LIMIT` | tidak | `1000` | Maksimum pesan keluar per 24 jam |
+| `WA_NON_TEXT_COOLDOWN_MS` | tidak | `1800000` | Jeda balasan non-teks per nomor (ms) |
 | `DATABASE_URL` | ya** | — | Diisi otomatis oleh compose |
 | `WA_BOT_URL` | tidak | `http://wa:3002` | Alamat status bot dari web |
 | `WA_AUTH_DIR` | tidak | `/data/auth` | Lokasi sesi WhatsApp |
@@ -424,7 +441,24 @@ Jangan commit file `.env`. File itu sudah ada di `.gitignore`.
 
 Data utama ada di volume `db-data`. Backup rutin sangat disarankan.
 
-### Backup
+### Dari dashboard (admin)
+
+Buka **Pengaturan → Backup & restore database**:
+
+- **Buat backup sekarang** — menyimpan dump PostgreSQL ke volume `backups-data`
+  dengan nama `saku-YYYYMMDD-HHMMSS.dump`.
+- **Unduh** — mengunduh file backup ke komputer.
+- **Pulihkan** — mengganti seluruh isi database dengan isi backup. Sebelum restore,
+  bot membuat backup pengaman `pre-restore-*.dump` secara otomatis.
+- **Restore dari file** — unggah file `.dump` (hasil `pg_dump -Fc`) atau `.sql`.
+
+File backup juga bisa disalin keluar server dengan:
+
+```bash
+docker compose cp web:/backups/saku-2026-10-29-120000.dump .
+```
+
+### Backup lewat terminal
 
 ```bash
 docker compose exec -T db sh -c \
@@ -434,7 +468,7 @@ docker compose exec -T db sh -c \
 
 Simpan file backup di luar server (mis. NAS atau cloud storage).
 
-### Restore
+### Restore lewat terminal
 
 ```bash
 docker compose stop web wa
@@ -442,6 +476,13 @@ cat saku-backup-2026-10-22.sql | docker compose exec -T db sh -c \
   'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 docker compose start web wa
 ```
+
+### Log aplikasi
+
+Admin bisa membuka **Log Aplikasi** dari sidebar atau Pengaturan. Log web dan bot
+ditulis ke volume `logs-data` (`web.log`, `wa.log`, rotasi 3 file × 5 MB) dan
+ditampilkan otomatis setiap 5 detik. Log tetap tersedia lewat
+`docker compose logs -f web wa`.
 
 Sesi WhatsApp ada di volume `wa-auth`. Kalau volume ini hilang, cukup scan QR lagi —
 tidak ada data transaksi yang hilang.
