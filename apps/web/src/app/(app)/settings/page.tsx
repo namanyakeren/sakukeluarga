@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { APP_TZ, formatNumberID, formatWaNumber } from "@saku/shared";
+import {
+  APP_TZ,
+  APP_VERSION_HISTORY,
+  APP_VERSION_LABEL,
+  formatNumberID,
+  formatWaNumber,
+} from "@saku/shared";
 import { BackupPanel } from "@/components/backup-panel";
 import { DeleteButton } from "@/components/delete-button";
 import { IconLock, IconPlus, IconTerminal, IconUsers } from "@/components/icons";
@@ -172,6 +178,8 @@ export default async function SettingsPage() {
               "bayar listrik 350.000 kemarin",
               "beli kopi 15rb @bca #makan",
               "/transfer 100rb @bca @gopay",
+              "/listrik 1234,5 50 1284,5 150rb",
+              "/galon 2 20rb · /gas 1 25rb",
               "/saldo · /laporan · /undo",
             ].map((example) => (
               <li
@@ -186,6 +194,15 @@ export default async function SettingsPage() {
 
         <SectionCard title="Informasi sistem" description="Konfigurasi aktif">
           <dl className="space-y-3 text-xs">
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-slate-500">Versi aplikasi</dt>
+              <dd className="flex items-center gap-1.5">
+                <Badge tone="primary">{APP_VERSION_LABEL}</Badge>
+                <span className="text-slate-500">
+                  rilis ke-{APP_VERSION_HISTORY.length}
+                </span>
+              </dd>
+            </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="text-slate-500">Zona waktu</dt>
               <dd className="font-semibold text-slate-800">{APP_TZ}</dd>

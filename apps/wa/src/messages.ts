@@ -23,6 +23,7 @@ import {
 import type { WAMessage, WASocket } from "@whiskeysockets/baileys";
 import { enqueueText, shouldReplyNonText } from "./anti-ban";
 import { handleElectricity } from "./electricity";
+import { handleUtility } from "./utility";
 import { logger } from "./logger";
 
 const HELP_TEXT = [
@@ -45,6 +46,8 @@ const HELP_TEXT = [
   "/dompet — daftar dompet",
   "/kategori — daftar kategori",
   "/listrik 1234,5 50 1284,5 150rb — catat token listrik",
+  "/galon 2 20rb — catat galon air",
+  "/gas 1 25rb — catat gas LPG",
   "/bantuan — bantuan ini",
   "",
   "*Tag opsional*",
@@ -382,6 +385,14 @@ async function handleCommand(user: User, text: string): Promise<string> {
     case "token":
     case "pln":
       return handleElectricity(user, rest, text);
+
+    case "galon":
+    case "air":
+      return handleUtility(user, rest, text, "WATER_GALLON");
+
+    case "gas":
+    case "lpg":
+      return handleUtility(user, rest, text, "LPG_GAS");
 
     case "dompet":
     case "wallet":

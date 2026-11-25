@@ -98,10 +98,20 @@ export default async function ElectricityPage({
           hint={`Rata-rata ${formatIDR(data.summary.avgPricePerKwh)}/kWh`}
         />
         <StatCard
-          label="Harga rata-rata"
-          value={`${formatIDR(data.summary.avgPricePerKwh)}/kWh`}
+          label="Pemakaian per hari"
+          value={
+            data.summary.perDay === null
+              ? "—"
+              : `${formatKwh(data.summary.perDay)} kWh/hari`
+          }
           tone="neutral"
-          hint="Dari total kWh yang dibeli"
+          hint={
+            data.summary.avgDaysBetween === null
+              ? "Butuh minimal 2 catatan"
+              : `Beli tiap ${data.summary.avgDaysBetween} hari · ${formatIDR(
+                  data.summary.costPerDay ?? 0,
+                )}/hari`
+          }
         />
       </div>
 
@@ -289,8 +299,8 @@ export default async function ElectricityPage({
       </SectionCard>
 
       <p className="text-center text-[11px] text-slate-500">
-        Data listrik bersifat umum untuk seluruh anggota, tidak masuk ke dompet atau
-        laporan pribadi siapa pun.
+        Setiap catatan token listrik otomatis menjadi pengeluaran milik penginput, jadi ikut
+        terhitung di dompet, laporan, dan dashboard.
       </p>
     </div>
   );

@@ -36,6 +36,9 @@ export interface ElectricityData {
     totalPrice: number;
     avgPricePerKwh: number;
     last: ElectricityRow | null;
+    avgDaysBetween: number | null;
+    perDay: number | null;
+    costPerDay: number | null;
   };
 }
 
@@ -100,6 +103,17 @@ export async function getElectricityData(monthParam?: string): Promise<Electrici
   const totalKwh = round2(allRows.reduce((sum, row) => sum + row.kwhAmount, 0));
   const totalPrice = allRows.reduce((sum, row) => sum + row.price, 0);
 
+  // Analisa pemakaian memakai seluruh riwayat, bukan hanya bulan terpilih.
+  const first = rowsAsc[0] ?? null;
+  const latest = rowsAsc[rowsAsc.length - 1] ?? null;
+  const spanDays =
+    first && latest
+      ? (latest.purchasedAt.getTime() - first.purchasedAt.getTime()) / 86_400_000
+      : 0;
+  const allPrice = rowsAsc.reduce((sum, row) => sum + row.price, 0);
+  // Pemakaian nyata diambil dari selisih meter, bukan total kWh yang dibeli.
+  const meterUsage = first && latest ? round2(latest.kwhAfter - first.kwhBefore) : 0;
+
   return {
     rows,
     months: monthly.map(({ key, label }) => ({ key, label })),
@@ -111,6 +125,11 @@ export async function getElectricityData(monthParam?: string): Promise<Electrici
       totalPrice,
       avgPricePerKwh: totalKwh > 0 ? totalPrice / totalKwh : 0,
       last: allRows.length > 0 ? allRows[allRows.length - 1] : null,
+      avgDaysBetween:
+        rowsAsc.length > 1 ? Math.round(spanDays / (rowsAsc.length - 1)) : null,
+      perDay:
+        spanDays >= 1 && meterUsage > 0 ? round2(meterUsage / spanDays) : null,
+      costPerDay: spanDays >= 1 ? Math.round(allPrice / spanDays) : null,
     },
   };
 }

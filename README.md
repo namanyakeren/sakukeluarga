@@ -53,9 +53,11 @@ tanpa biaya bulanan.
   dompet anggota lain. Tidak dihitung sebagai pemasukan/pengeluaran.
 - **Dashboard web** — ringkasan bulan ini, tren 6 bulan, transaksi terbaru,
   grafik kategori, filter, pencarian, pagination, ekspor CSV.
-- **Token listrik bersama** — catat kWh sebelum, kWh yang didapat, kWh setelah,
-  tanggal, dan harga dari WhatsApp (`/listrik`, `/token`, `/pln`) atau halaman
-  **Listrik**. Data bersifat umum: tidak masuk ke dompet atau laporan pribadi.
+- **Token listrik & kebutuhan rumah** — catat kWh sebelum, kWh yang didapat, kWh
+  setelah, tanggal, dan harga dari WhatsApp (`/listrik`, `/token`, `/pln`) atau
+  halaman **Listrik**. Galon air dan gas LPG dicatat dari `/galon` dan `/gas` atau
+  halaman **Gas & Galon**. Setiap catatan otomatis menjadi pengeluaran penginput,
+  lengkap dengan analisa pemakaian per hari dan rekap bulanan.
 - **Kategori otomatis** — kategori ditebak dari kata kunci catatan, atau pilih manual
   dengan `#tag`. Kategori & dompet bisa diubah dari web.
 - **Panel WhatsApp** — status koneksi dan QR code langsung di halaman Pengaturan.
@@ -296,6 +298,8 @@ diam-diam mencatat ke dompet default.
 | `/dompet` | Daftar dompet & saldo |
 | `/kategori` | Daftar kategori |
 | `/listrik 1234,5 50 1284,5 150rb` | Catat token listrik (tanggal & catatan opsional) |
+| `/galon 2 20rb` | Catat galon air (tanggal & catatan opsional) |
+| `/gas 1 25rb` | Catat gas LPG (tanggal & catatan opsional) |
 | `/bantuan` | Bantuan |
 
 Transfer hanya memengaruhi saldo dompet dan **tidak** masuk laporan pemasukan/pengeluaran.
@@ -311,7 +315,8 @@ lalu dompet tujuan milik anggota tersebut.
 | **Dashboard** | Ringkasan bulan ini, tren 6 bulan, grafik pengeluaran, transaksi terbaru |
 | **Transaksi** | Filter bulan/jenis/dompet/kategori/pencarian, tambah/ubah/hapus, transfer |
 | **Laporan** | Pemasukan, pengeluaran, selisih, rasio tabungan, kategori, tren, ekspor CSV |
-| **Listrik** | Rekap token listrik bersama: meter, kWh, biaya, harga/kWh, pemakaian |
+| **Listrik** | Rekap token listrik: meter, kWh, biaya, harga/kWh, pemakaian per hari |
+| **Gas & Galon** | Rekap galon air dan gas LPG: jumlah, biaya, harga/unit, pemakaian per hari |
 | **Dompet** | Tambah/ubah dompet, saldo awal, dompet default, arsip/hapus |
 | **Kategori** | Kategori pemasukan/pengeluaran, emoji, kata kunci, urutan |
 | **Pengaturan** | Profil, nomor WA, password, anggota, status/QR WhatsApp, backup & restore |

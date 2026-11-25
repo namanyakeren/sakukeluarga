@@ -5,3 +5,5 @@ export * from "./parse";
 export * from "./defaults";
 export * from "./format";
 export * from "./electricity";
+export * from "./utility";
+export * from "./version";

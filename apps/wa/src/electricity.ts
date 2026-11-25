@@ -22,10 +22,10 @@ export const ELECTRICITY_HELP = [
   "• /listrik 1234,5 50 1284,5 150rb 05-11-2026 token november",
   "",
   "Tanggal boleh YYYY-MM-DD atau DD-MM-YYYY. Jika kosong, dipakai hari ini.",
-  "Data listrik bersifat umum dan tidak masuk ke dompet anggota.",
+  "Harga otomatis tercatat sebagai pengeluaranmu di dompet default.",
 ].join("\n");
 
-function parseDateToken(token: string): Date | null {
+export function parseDateToken(token: string): Date | null {
   const value = token.trim();
   const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(value);
   if (dmy) {
@@ -35,7 +35,7 @@ function parseDateToken(token: string): Date | null {
   return dateInputToUtc(value);
 }
 
-function looksLikeDate(token: string): boolean {
+export function looksLikeDate(token: string): boolean {
   return (
     /^\d{4}-\d{2}-\d{2}$/.test(token) || /^\d{1,2}[/-]\d{1,2}[/-]\d{4}$/.test(token)
   );
@@ -109,6 +109,7 @@ export async function handleElectricity(
       ? `⚠️ Selisih meter ${mismatch > 0 ? "+" : "−"}${formatKwh(Math.abs(mismatch))} kWh. Cek kembali angka kWh setelah.`
       : null,
     "",
+    `💸 Masuk pengeluaranmu: *${formatIDR(purchase.price)}*`,
     "Lihat rekap lengkap di menu *Listrik* pada dashboard.",
   ]
     .filter((line): line is string => Boolean(line))

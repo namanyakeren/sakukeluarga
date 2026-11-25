@@ -114,3 +114,7 @@ export function validateElectricity(values: ElectricityValues): ElectricityValid
 
   return { ok: true, pricePerKwh: round2(price / kwhAmount) };
 }
+
+/** Alias netral untuk angka desimal: kWh, jumlah galon, atau tabung gas. */
+export const parseDecimal = parseKwh;
+export const formatDecimal = formatKwh;

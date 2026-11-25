@@ -11,8 +11,15 @@ import type { ActionState } from "../action-state";
 import { requireUser } from "../auth";
 
 function refresh(): void {
-  revalidatePath("/electricity");
-  revalidatePath("/dashboard");
+  for (const path of [
+    "/electricity",
+    "/dashboard",
+    "/transactions",
+    "/reports",
+    "/wallets",
+  ]) {
+    revalidatePath(path);
+  }
 }
 
 function fail(error: string): ActionState {

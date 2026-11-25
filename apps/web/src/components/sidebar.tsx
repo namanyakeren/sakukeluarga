@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
+import { APP_VERSION_LABEL } from "@saku/shared";
 import { logoutAction } from "@/lib/actions/auth";
 import {
   IconBolt,
   IconChart,
+  IconDroplet,
   IconHome,
   IconList,
   IconLogout,
@@ -29,6 +31,7 @@ const NAV: NavItem[] = [
   { href: "/transactions", label: "Transaksi", icon: IconList },
   { href: "/reports", label: "Laporan", icon: IconChart },
   { href: "/electricity", label: "Listrik", icon: IconBolt },
+  { href: "/utilities", label: "Gas & Galon", icon: IconDroplet },
   { href: "/wallets", label: "Dompet", icon: IconWallet },
   { href: "/categories", label: "Kategori", icon: IconTag },
   { href: "/logs", label: "Log Aplikasi", icon: IconTerminal, adminOnly: true },
@@ -40,6 +43,7 @@ const MOBILE_NAV: NavItem[] = [
   { href: "/transactions", label: "Transaksi", icon: IconList },
   { href: "/reports", label: "Laporan", icon: IconChart },
   { href: "/electricity", label: "Listrik", icon: IconBolt },
+  { href: "/utilities", label: "Gas", icon: IconDroplet },
   { href: "/wallets", label: "Dompet", icon: IconWallet },
   { href: "/settings", label: "Atur", icon: IconSettings },
 ];
@@ -86,6 +90,10 @@ export function Sidebar({ user }: { user: { name: string; role: string } }) {
           })}
         </nav>
 
+        <p className="px-5 pb-2 text-[10px] font-medium text-slate-400">
+          Saku Keluarga {APP_VERSION_LABEL}
+        </p>
+
         <div className="border-t border-slate-100 p-3">
           <div className="flex items-center gap-3 rounded-xl px-2 py-2">
             <Avatar name={user.name} />
@@ -127,7 +135,11 @@ export function Sidebar({ user }: { user: { name: string; role: string } }) {
       <nav
         className={cn(
           "fixed inset-x-0 bottom-0 z-30 grid border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden",
-          mobileNavItems.length > 5 ? "grid-cols-6" : "grid-cols-5",
+          mobileNavItems.length > 6
+            ? "grid-cols-7"
+            : mobileNavItems.length > 5
+              ? "grid-cols-6"
+              : "grid-cols-5",
         )}
       >
         {mobileNavItems.map((item) => {

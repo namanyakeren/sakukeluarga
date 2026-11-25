@@ -141,6 +141,19 @@ export const IconBolt = (props: IconProps) => (
   </Base>
 );
 
+export const IconDroplet = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M12 3s6 6.3 6 10.5a6 6 0 0 1-12 0C6 9.3 12 3 12 3Z" />
+    <path d="M9.5 14a2.5 2.5 0 0 0 2.5 2.5" />
+  </Base>
+);
+
+export const IconFlame = (props: IconProps) => (
+  <Base {...props}>
+    <path d="M12 21a6 6 0 0 0 6-6c0-2.5-1.5-4.6-3-6.2-.6 1.7-1.7 2.7-3 3.2.4-3-1-5.4-3-7-1 3-3 5.3-3 10a6 6 0 0 0 6 6Z" />
+  </Base>
+);
+
 export const IconCheck = (props: IconProps) => (
   <Base {...props}>
     <path d="m5 12.5 4.5 4.5L19 7" />

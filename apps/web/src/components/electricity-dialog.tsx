@@ -219,8 +219,8 @@ function ElectricityForm({
       </div>
 
       <p className="rounded-xl bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
-        Catatan listrik bersifat umum untuk seluruh anggota dan tidak mengubah saldo
-        dompet atau laporan pribadi.
+        Catatan ini otomatis masuk sebagai pengeluaranmu di dompet default dan muncul di
+        halaman Transaksi.
       </p>
 
       {state.error ? (
